@@ -1,0 +1,33 @@
+modLoader = "javafml"
+loaderVersion = "*"
+license = "MIT"
+issueTrackerURL = "https://www.curseforge.com/minecraft/mc-mods/quick-craft"
+
+[[mods]]
+modId = "${id}"
+version = "${version}"
+displayName = "${name}"
+displayURL = "https://www.curseforge.com/minecraft/mc-mods/quick-craft"
+authors = "Sxilverr"
+description = '''Craft an entire recipe tree in one click. A JEI addon that shows the full crafting tree for any item and batch-crafts it from your inventory and nearby storage.'''
+
+[[dependencies.${id}]]
+modId = "neoforge"
+type = "required"
+versionRange = "*"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${id}]]
+modId = "minecraft"
+type = "required"
+versionRange = "${minecraft}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${id}]]
+modId = "jei"
+type = "optional"
+versionRange = "[19,)"
+ordering = "AFTER"
+side = "CLIENT"
