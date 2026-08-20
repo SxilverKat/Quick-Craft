@@ -20,6 +20,7 @@ import com.sxilverr.quickcraft.crafting.TreeBuilder;
 import com.sxilverr.quickcraft.forge.integration.projecte.EmcSession;
 import com.sxilverr.quickcraft.forge.integration.projecte.ProjectEIntegration;
 import com.sxilverr.quickcraft.storage.CompositeItemSource;
+import com.sxilverr.quickcraft.storage.DamageMatch;
 import com.sxilverr.quickcraft.storage.ItemSource;
 import com.sxilverr.quickcraft.forge.storage.ItemSourceFactory;
 import com.sxilverr.quickcraft.storage.LabeledSource;
@@ -147,23 +148,29 @@ public final class CraftService {
         return out;
     }
 
-    public record AvailabilitySnapshot(Map<ItemKey, Integer> counts, Map<ItemKey, ItemStack> sources) {
+    public record AvailabilitySnapshot(Map<ItemKey, Integer> counts, Map<ItemKey, ItemStack> sources,
+                                      Map<ItemKey, ItemStack> samples) {
     }
 
     public static AvailabilitySnapshot availability(ServerPlayer player, Set<ItemKey> keys) {
         Map<ItemKey, Integer> counts = new HashMap<>();
         Map<ItemKey, ItemStack> sources = new HashMap<>();
-        if (keys.isEmpty()) return new AvailabilitySnapshot(counts, sources);
+        Map<ItemKey, ItemStack> samples = new HashMap<>();
+        if (keys.isEmpty()) return new AvailabilitySnapshot(counts, sources, samples);
         ItemSource source = ItemSourceFactory.forPlayer(player, QuickCraftConfig.containerScanRange());
+        List<ItemStack> snapshot = null;
         for (ItemKey key : keys) {
             ItemStack rep = key.toStack(1);
             int available = source.extractMatching(rep, Integer.MAX_VALUE, true);
             counts.put(key, available);
-            if (available > 0) {
-                source.sourceIconFor(rep).filter(icon -> !icon.isEmpty()).ifPresent(icon -> sources.put(key, icon));
-            }
+            if (available <= 0) continue;
+            source.sourceIconFor(rep).filter(icon -> !icon.isEmpty()).ifPresent(icon -> sources.put(key, icon));
+            if (!DamageMatch.tolerant(rep)) continue;
+            if (snapshot == null) snapshot = source.snapshot();
+            ItemStack sample = DamageMatch.worst(snapshot, rep);
+            if (!sample.isEmpty()) samples.put(key, sample);
         }
-        return new AvailabilitySnapshot(counts, sources);
+        return new AvailabilitySnapshot(counts, sources, samples);
     }
 
     public static List<LabeledSource> depositTargets(ServerPlayer player) {

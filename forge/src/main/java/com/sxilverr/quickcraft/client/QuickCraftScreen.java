@@ -114,6 +114,7 @@ public class QuickCraftScreen extends Screen {
     private final Map<String, Item> ingredientChoices = new HashMap<>();
     private final Map<ItemKey, Integer> haveCounts = new HashMap<>();
     private final Map<ItemKey, ItemStack> sourceIcons = new HashMap<>();
+    private final Map<ItemKey, ItemStack> damageSamples = new HashMap<>();
 
     private RecipeResolver resolver;
     private TreeBuilder builder;
@@ -578,13 +579,17 @@ public class QuickCraftScreen extends Screen {
         }
     }
 
-    public void setAvailability(Map<ItemKey, Integer> counts, Map<ItemKey, ItemStack> sources, Stations stations) {
+    public void setAvailability(Map<ItemKey, Integer> counts, Map<ItemKey, ItemStack> sources,
+                                Map<ItemKey, ItemStack> samples, Stations stations) {
         serverStations = stations;
         haveCounts.putAll(counts);
         for (ItemKey key : counts.keySet()) {
             ItemStack src = sources.get(key);
             if (src == null) sourceIcons.remove(key);
             else sourceIcons.put(key, src);
+            ItemStack sample = samples.get(key);
+            if (sample == null) damageSamples.remove(key);
+            else damageSamples.put(key, sample);
         }
         applyingAvailability = true;
         rebuild();
@@ -1258,7 +1263,7 @@ public class QuickCraftScreen extends Screen {
     }
 
     private void drawSummaryRow(GuiGraphics g, Map.Entry<ItemKey, Integer> entry, int px, int ry, int dx) {
-        ItemStack stack = entry.getKey().toStack(1);
+        ItemStack stack = displayStack(entry.getKey(), entry.getKey().toStack(1));
         int need = entry.getValue();
         int have = haveCounts.getOrDefault(entry.getKey(), 0);
         int rx = px + dx;
@@ -1361,6 +1366,16 @@ public class QuickCraftScreen extends Screen {
         return effectiveHave(ItemKey.of(node.output)) >= node.requiredCount;
     }
 
+    private ItemStack displayStack(CraftNode node) {
+        if (node == root) return node.output;
+        return displayStack(ItemKey.of(node.output), node.output);
+    }
+
+    private ItemStack displayStack(ItemKey key, ItemStack fallback) {
+        ItemStack sample = damageSamples.get(key);
+        return sample == null || sample.isEmpty() ? fallback : sample;
+    }
+
     private ItemStack cornerIconFor(CraftNode node) {
         if (isCompleted(node)) {
             return sourceIcons.getOrDefault(ItemKey.of(node.output), ItemStack.EMPTY);
@@ -1386,7 +1401,7 @@ public class QuickCraftScreen extends Screen {
         g.fill(sx - 1, sy - 1, sx + w + 1, sy + NodeView.HEIGHT + 1, border);
         g.fill(sx, sy, sx + w, sy + NodeView.HEIGHT, COLOR_NODE_BG);
 
-        ItemStack icon = view.node.output;
+        ItemStack icon = displayStack(view.node);
         g.renderItem(icon, sx + 5, sy + 7);
         g.renderItemDecorations(this.font, icon, sx + 5, sy + 7);
 
@@ -1481,6 +1496,11 @@ public class QuickCraftScreen extends Screen {
         String availLine = "Available: " + have;
         if (fromEmc > 0) availLine += " (+" + fromEmc + " from EMC)";
         lines.add(Component.literal(availLine).withStyle(ChatFormatting.GRAY));
+        ItemStack wear = displayStack(node);
+        if (wear.isDamaged()) {
+            int left = wear.getMaxDamage() - wear.getDamageValue();
+            lines.add(Component.literal("Durability: " + left + " / " + wear.getMaxDamage()).withStyle(ChatFormatting.GRAY));
+        }
         if (isCompleted(node)) {
             String from;
             if (have < node.requiredCount && fromEmc > 0) {

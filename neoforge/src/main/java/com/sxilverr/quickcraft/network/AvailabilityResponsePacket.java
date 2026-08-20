@@ -23,11 +23,14 @@ public class AvailabilityResponsePacket implements CustomPacketPayload {
 
     private final Map<ItemKey, Integer> counts;
     private final Map<ItemKey, ItemStack> sources;
+    private final Map<ItemKey, ItemStack> samples;
     private final Stations stations;
 
-    public AvailabilityResponsePacket(Map<ItemKey, Integer> counts, Map<ItemKey, ItemStack> sources, Stations stations) {
+    public AvailabilityResponsePacket(Map<ItemKey, Integer> counts, Map<ItemKey, ItemStack> sources,
+                                      Map<ItemKey, ItemStack> samples, Stations stations) {
         this.counts = counts;
         this.sources = sources;
+        this.samples = samples;
         this.stations = stations;
     }
 
@@ -39,7 +42,7 @@ public class AvailabilityResponsePacket implements CustomPacketPayload {
     private static void write(RegistryFriendlyByteBuf buf, AvailabilityResponsePacket msg) {
         buf.writeVarInt(msg.counts.size());
         for (Map.Entry<ItemKey, Integer> entry : msg.counts.entrySet()) {
-            ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, entry.getKey().toStack(1));
+            ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, msg.samples.getOrDefault(entry.getKey(), entry.getKey().toStack(1)));
             buf.writeVarInt(entry.getValue());
             ItemStack.OPTIONAL_STREAM_CODEC.encode(buf, msg.sources.getOrDefault(entry.getKey(), ItemStack.EMPTY));
         }
@@ -50,6 +53,7 @@ public class AvailabilityResponsePacket implements CustomPacketPayload {
         int count = Math.min(MAX_ENTRIES, buf.readVarInt());
         Map<ItemKey, Integer> counts = new HashMap<>();
         Map<ItemKey, ItemStack> sources = new HashMap<>();
+        Map<ItemKey, ItemStack> samples = new HashMap<>();
         for (int i = 0; i < count; i++) {
             ItemStack stack = ItemStack.OPTIONAL_STREAM_CODEC.decode(buf);
             int amount = buf.readVarInt();
@@ -58,9 +62,10 @@ public class AvailabilityResponsePacket implements CustomPacketPayload {
             ItemKey key = ItemKey.of(stack);
             counts.put(key, amount);
             if (!source.isEmpty()) sources.put(key, source);
+            if (stack.isDamaged()) samples.put(key, stack);
         }
         Stations stations = readStations(buf);
-        return new AvailabilityResponsePacket(counts, sources, stations);
+        return new AvailabilityResponsePacket(counts, sources, samples, stations);
     }
 
     private static void writeStations(Stations s, RegistryFriendlyByteBuf buf) {
@@ -101,6 +106,6 @@ public class AvailabilityResponsePacket implements CustomPacketPayload {
     }
 
     public static void handle(AvailabilityResponsePacket msg, IPayloadContext ctx) {
-        ClientNetworkHandler.onAvailability(msg.counts, msg.sources, msg.stations);
+        ClientNetworkHandler.onAvailability(msg.counts, msg.sources, msg.samples, msg.stations);
     }
 }

@@ -30,6 +30,15 @@ public final class DamageMatch {
         return out;
     }
 
+    public static ItemStack worst(List<ItemStack> stacks, ItemStack representative) {
+        if (!tolerant(representative)) return ItemStack.EMPTY;
+        List<ItemStack> found = variants(stacks, representative);
+        if (found.isEmpty()) return ItemStack.EMPTY;
+        ItemStack sample = found.get(0).copy();
+        sample.setCount(1);
+        return sample;
+    }
+
     private static boolean holds(List<ItemStack> stacks, int damage) {
         for (ItemStack stack : stacks) {
             if (stack.getDamageValue() == damage) return true;

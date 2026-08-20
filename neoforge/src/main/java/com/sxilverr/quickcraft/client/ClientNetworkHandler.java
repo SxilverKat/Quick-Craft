@@ -13,10 +13,11 @@ public final class ClientNetworkHandler {
     private ClientNetworkHandler() {
     }
 
-    public static void onAvailability(Map<ItemKey, Integer> counts, Map<ItemKey, ItemStack> sources, Stations stations) {
+    public static void onAvailability(Map<ItemKey, Integer> counts, Map<ItemKey, ItemStack> sources,
+                                      Map<ItemKey, ItemStack> samples, Stations stations) {
         BookmarkOverlay.setAvailability(counts);
         if (Minecraft.getInstance().screen instanceof QuickCraftScreen screen) {
-            screen.setAvailability(counts, sources, stations);
+            screen.setAvailability(counts, sources, samples, stations);
         }
     }
 

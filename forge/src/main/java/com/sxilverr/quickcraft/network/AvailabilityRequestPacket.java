@@ -54,7 +54,7 @@ public class AvailabilityRequestPacket {
             }
             CraftService.AvailabilitySnapshot snapshot = CraftService.availability(player, wanted);
             Stations stations = StationScan.detect(player.serverLevel(), player);
-            QuickCraftNetwork.sendAvailability(player, snapshot.counts(), snapshot.sources(), stations);
+            QuickCraftNetwork.sendAvailability(player, snapshot.counts(), snapshot.sources(), snapshot.samples(), stations);
         });
         context.setPacketHandled(true);
     }

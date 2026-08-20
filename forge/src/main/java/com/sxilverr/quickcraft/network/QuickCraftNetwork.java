@@ -81,7 +81,8 @@ public final class QuickCraftNetwork {
         CHANNEL.sendToServer(new AvailabilityRequestPacket(stacks));
     }
 
-    public static void sendAvailability(ServerPlayer player, Map<ItemKey, Integer> counts, Map<ItemKey, ItemStack> sources, Stations stations) {
-        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new AvailabilityResponsePacket(counts, sources, stations));
+    public static void sendAvailability(ServerPlayer player, Map<ItemKey, Integer> counts, Map<ItemKey, ItemStack> sources,
+                                        Map<ItemKey, ItemStack> samples, Stations stations) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new AvailabilityResponsePacket(counts, sources, samples, stations));
     }
 }
