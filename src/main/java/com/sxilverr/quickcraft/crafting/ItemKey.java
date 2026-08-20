@@ -3,6 +3,7 @@ package com.sxilverr.quickcraft.crafting;
 //? if >=1.20.5 {
 /*import com.mojang.serialization.Dynamic;
 import net.minecraft.core.component.DataComponentPatch;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
 *///?}
@@ -27,13 +28,28 @@ public final class ItemKey {
 
     public static ItemKey of(ItemStack stack) {
         //? if >=1.20.5 {
-        /*DataComponentPatch patch = stack.getComponentsPatch();
+        /*DataComponentPatch patch = withoutDamage(stack, stack.getComponentsPatch());
         return new ItemKey(stack.getItem(), patch.isEmpty() ? null : patch);
         *///?} else {
-        CompoundTag t = stack.getTag();
-        return new ItemKey(stack.getItem(), t == null ? null : t.copy());
+        CompoundTag t = withoutDamage(stack, stack.getTag());
+        return new ItemKey(stack.getItem(), t);
         //?}
     }
+
+    //? if >=1.20.5 {
+    /*private static DataComponentPatch withoutDamage(ItemStack stack, DataComponentPatch patch) {
+        if (patch.isEmpty() || !stack.isDamageableItem()) return patch;
+        return patch.forget(type -> type == DataComponents.DAMAGE);
+    }
+    *///?} else {
+    private static CompoundTag withoutDamage(ItemStack stack, CompoundTag tag) {
+        if (tag == null) return null;
+        if (!tag.contains("Damage") || !stack.isDamageableItem()) return tag.copy();
+        CompoundTag copy = tag.copy();
+        copy.remove("Damage");
+        return copy.isEmpty() ? null : copy;
+    }
+    //?}
 
     public String toKey() {
         ResourceLocation id = BuiltInRegistries.ITEM.getKey(item);
@@ -66,7 +82,8 @@ public final class ItemKey {
                 return null;
             }
         }
-        return new ItemKey(item, data);
+        if (data == null) return new ItemKey(item, null);
+        return of(new ItemKey(item, data).toStack(1));
     }
 
     private static Object decode(String text) throws Exception {
@@ -96,16 +113,7 @@ public final class ItemKey {
     }
 
     public boolean matches(ItemStack stack) {
-        return stack.getItem() == item && Objects.equals(data, extra(stack));
-    }
-
-    private static Object extra(ItemStack stack) {
-        //? if >=1.20.5 {
-        /*DataComponentPatch patch = stack.getComponentsPatch();
-        return patch.isEmpty() ? null : patch;
-        *///?} else {
-        return stack.getTag();
-        //?}
+        return !stack.isEmpty() && stack.getItem() == item && equals(of(stack));
     }
 
     @Override

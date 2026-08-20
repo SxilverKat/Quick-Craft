@@ -157,7 +157,7 @@ public final class CraftService {
         ItemSource source = ItemSourceFactory.forPlayer(player, QuickCraftConfig.containerScanRange());
         for (ItemKey key : keys) {
             ItemStack rep = key.toStack(1);
-            int available = source.extract(rep, Integer.MAX_VALUE, true);
+            int available = source.extractMatching(rep, Integer.MAX_VALUE, true);
             counts.put(key, available);
             if (available > 0) {
                 source.sourceIconFor(rep).filter(icon -> !icon.isEmpty()).ifPresent(icon -> sources.put(key, icon));
@@ -207,12 +207,12 @@ public final class CraftService {
         }
 
         for (Map.Entry<ItemKey, Integer> entry : consumed.entrySet()) {
-            if (source.extract(entry.getKey().toStack(1), entry.getValue(), true) < entry.getValue()) return false;
+            if (source.extractMatching(entry.getKey().toStack(1), entry.getValue(), true) < entry.getValue()) return false;
         }
 
         Map<ItemKey, Integer> taken = new LinkedHashMap<>();
         for (Map.Entry<ItemKey, Integer> entry : consumed.entrySet()) {
-            int got = source.extract(entry.getKey().toStack(1), entry.getValue(), false);
+            int got = source.extractMatching(entry.getKey().toStack(1), entry.getValue(), false);
             if (got > 0) taken.put(entry.getKey(), got);
             if (got < entry.getValue()) {
                 refund(source, taken, player);

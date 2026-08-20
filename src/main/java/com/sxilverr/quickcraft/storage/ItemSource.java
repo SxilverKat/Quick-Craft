@@ -12,12 +12,23 @@ public interface ItemSource {
 
     ItemStack insert(ItemStack stack, boolean simulate);
 
+    default int extractMatching(ItemStack representative, int amount, boolean simulate) {
+        if (!DamageMatch.tolerant(representative)) return extract(representative, amount, simulate);
+        int extracted = 0;
+        for (ItemStack variant : DamageMatch.variants(snapshot(), representative)) {
+            if (extracted >= amount) break;
+            extracted += extract(variant, amount - extracted, simulate);
+        }
+        if (extracted < amount) extracted += extract(representative, amount - extracted, simulate);
+        return extracted;
+    }
+
     default ItemStack sourceIcon() {
         return ItemStack.EMPTY;
     }
 
     default Optional<ItemStack> sourceIconFor(ItemStack representative) {
-        return extract(representative, 1, true) > 0 ? Optional.of(sourceIcon()) : Optional.empty();
+        return extractMatching(representative, 1, true) > 0 ? Optional.of(sourceIcon()) : Optional.empty();
     }
 
     default int freeSlots() {

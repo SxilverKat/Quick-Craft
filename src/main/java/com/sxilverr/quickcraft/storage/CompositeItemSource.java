@@ -33,6 +33,16 @@ public class CompositeItemSource implements ItemSource {
     }
 
     @Override
+    public int extractMatching(ItemStack representative, int amount, boolean simulate) {
+        int extracted = 0;
+        for (ItemSource source : sources) {
+            if (extracted >= amount) break;
+            extracted += source.extractMatching(representative, amount - extracted, simulate);
+        }
+        return extracted;
+    }
+
+    @Override
     public ItemStack insert(ItemStack stack, boolean simulate) {
         ItemStack remaining = stack.copy();
         for (ItemSource source : sources) {
