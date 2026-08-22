@@ -22,6 +22,8 @@ public class ForceCraftConfirmScreen extends Screen {
     private static final int FORCE_W = 150;
     private static final int FORCE_H = 24;
     private static final int MAX_ROWS = 7;
+    private static final int PANEL_MIN_W = 224;
+    private static final String EMPTY_LINE = "Not enough materials to make any items";
 
     private final Screen parent;
     private final ItemStack target;
@@ -85,13 +87,14 @@ public class ForceCraftConfirmScreen extends Screen {
 
     private void renderAcquire(GuiGraphics g, int cx) {
         List<CraftPreview.Gain> list = preview.gained();
-        int panelW = 224;
         int rowH = 18;
         int headerH = 15;
         int shown = Math.min(list.size(), MAX_ROWS);
         boolean more = list.size() > shown;
         int bodyRows = list.isEmpty() ? 1 : shown;
         int panelH = headerH + bodyRows * rowH + (more ? 11 : 0) + 4;
+        String moreLabel = "… +" + (list.size() - shown) + " more";
+        int panelW = panelWidth(list, shown, more, moreLabel);
 
         int px = cx - panelW / 2;
         int py = forceY + FORCE_H + 6;
@@ -101,25 +104,38 @@ public class ForceCraftConfirmScreen extends Screen {
         g.drawString(this.font, "Acquire items:", px + 6, py + 4, 0xFFFFFFFF, false);
 
         if (list.isEmpty()) {
-            g.drawString(this.font, "Nothing - not enough materials to make any.",
-                    px + 8, py + headerH + 5, 0xFFAAAAAA, false);
+            g.drawString(this.font, EMPTY_LINE, px + 8, py + headerH + 5, 0xFFAAAAAA, false);
             return;
         }
 
         int y = py + headerH + 2;
         for (int i = 0; i < shown; i++) {
             CraftPreview.Gain gain = list.get(i);
-            ItemStack icon = gain.toStack();
-            g.renderItem(icon, px + 5, y);
+            g.renderItem(gain.toStack(), px + 5, y);
             int color = gain.key().item() == target.getItem() ? COLOR_TARGET : 0xFFFFFFFF;
-            String label = trim(icon.getHoverName().getString(), 22) + "  ×" + gain.count();
-            g.drawString(this.font, label, px + 26, y + 4, color, false);
+            g.drawString(this.font, rowLabel(gain), px + 26, y + 4, color, false);
             y += rowH;
         }
         if (more) {
-            g.drawString(this.font, "… +" + (list.size() - shown) + " more",
-                    px + 8, y + 1, 0xFF909090, false);
+            g.drawString(this.font, moreLabel, px + 8, y + 1, 0xFF909090, false);
         }
+    }
+
+    private int panelWidth(List<CraftPreview.Gain> list, int shown, boolean more, String moreLabel) {
+        int w = this.font.width("Acquire items:") + 12;
+        if (list.isEmpty()) {
+            w = Math.max(w, this.font.width(EMPTY_LINE) + 16);
+        } else {
+            for (int i = 0; i < shown; i++) {
+                w = Math.max(w, this.font.width(rowLabel(list.get(i))) + 34);
+            }
+            if (more) w = Math.max(w, this.font.width(moreLabel) + 16);
+        }
+        return Math.max(PANEL_MIN_W, w);
+    }
+
+    private static String rowLabel(CraftPreview.Gain gain) {
+        return trim(gain.toStack().getHoverName().getString(), 22) + "  ×" + gain.count();
     }
 
     private void forceCraft() {
