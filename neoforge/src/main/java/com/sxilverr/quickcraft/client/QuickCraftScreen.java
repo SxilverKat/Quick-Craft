@@ -389,7 +389,8 @@ public class QuickCraftScreen extends Screen {
             }
         }
         if (isShiftKey(keyCode) && !shiftActive) applyShiftState(true);
-        if (hoveringStationName && missingStation != null) {
+        boolean typing = depositMenuOpen || quantityBox.isFocused();
+        if (!typing && hoveringStationName && missingStation != null) {
             int dir = tagDirection(keyCode);
             if (dir != 0) {
                 int count = StationProviders.icons(missingStation).size();
@@ -397,14 +398,14 @@ public class QuickCraftScreen extends Screen {
                 return true;
             }
         }
-        if (!quantityBox.isFocused() && hoveredView != null && hoveredView.node.isTagChoice()) {
+        if (!typing && hoveredView != null && hoveredView.node.isTagChoice()) {
             int dir = tagDirection(keyCode);
             if (dir != 0) {
                 cycleTagOption(hoveredView.node, dir);
                 return true;
             }
         }
-        if (!quantityBox.isFocused() && hoveredView != null && QuickCraftIntegrations.canShowRecipes()) {
+        if (!typing && hoveredView != null && QuickCraftIntegrations.canShowRecipes()) {
             if (QuickCraftClient.SHOW_RECIPE_KEY.matches(keyCode, scanCode)) {
                 QuickCraftIntegrations.showRecipe(hoveredView.node.output);
                 return true;

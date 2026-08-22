@@ -29,6 +29,7 @@ public class QuickCraftJeiPlugin implements IModPlugin {
         this.runtime = jeiRuntime;
         QuickCraftIntegrations.setHoveredItemProvider(this::hoveredItem);
         QuickCraftIntegrations.setRecipeViewer(this::showRecipe);
+        QuickCraftIntegrations.setTextInputFocused(this::searchFocused);
     }
 
     @Override
@@ -36,6 +37,11 @@ public class QuickCraftJeiPlugin implements IModPlugin {
         this.runtime = null;
         QuickCraftIntegrations.setHoveredItemProvider(null);
         QuickCraftIntegrations.setRecipeViewer(null);
+        QuickCraftIntegrations.setTextInputFocused(null);
+    }
+
+    private boolean searchFocused() {
+        return runtime != null && runtime.getIngredientListOverlay().hasKeyboardFocus();
     }
 
     private void showRecipe(ItemStack stack, boolean uses) {

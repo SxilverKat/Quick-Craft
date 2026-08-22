@@ -2,11 +2,22 @@ package com.sxilverr.quickcraft.integration;
 
 import net.minecraft.world.item.ItemStack;
 
+import java.util.function.BooleanSupplier;
+
 public final class QuickCraftIntegrations {
     private static HoveredItemProvider hoveredItemProvider;
     private static RecipeViewer recipeViewer;
+    private static BooleanSupplier textInputFocused;
 
     private QuickCraftIntegrations() {
+    }
+
+    public static void setTextInputFocused(BooleanSupplier supplier) {
+        textInputFocused = supplier;
+    }
+
+    public static boolean isTextInputFocused() {
+        return textInputFocused != null && textInputFocused.getAsBoolean();
     }
 
     public static void setHoveredItemProvider(HoveredItemProvider provider) {

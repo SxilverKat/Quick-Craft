@@ -71,6 +71,7 @@ public class QuickCraftClientEvents {
     public static void onScreenKeyPressed(ScreenEvent.KeyPressed.Pre event) {
         if (event.getScreen() instanceof QuickCraftScreen) return;
         if (!QuickCraftClient.OPEN_KEY.matches(event.getKeyCode(), event.getScanCode())) return;
+        if (TextInputGuard.isTyping(event.getScreen())) return;
         if (tryOpenFromScreen(event.getScreen())) event.setCanceled(true);
     }
 
