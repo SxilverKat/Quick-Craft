@@ -18,6 +18,7 @@ public final class ProjectEClient {
     private static final String[] SUFFIXES = {"", "K", "M", "B", "T", "P", "E"};
     private static final BigInteger THOUSAND = BigInteger.valueOf(1000);
     private static final BigInteger UNLIMITED = BigInteger.ONE.shiftLeft(96);
+    private static final BigInteger CAPACITY_CAP = BigInteger.valueOf(1_000_000);
 
     private ProjectEClient() {
     }
@@ -29,7 +30,16 @@ public final class ProjectEClient {
         BigInteger owned = session.emc();
         String total = format(owned);
         if (root == null || target == null || target.isEmpty()) {
-            return new EmcPlan(true, Map.of(), null, total, true);
+            return new EmcPlan(true, Map.of(), null, total, true, Map.of());
+        }
+
+        Map<ItemKey, Integer> capacity = new HashMap<>();
+        for (Map.Entry<ItemKey, Long> entry : session.values(keys).entrySet()) {
+            long unit = entry.getValue();
+            if (unit <= 0L) continue;
+            BigInteger max = owned.divide(BigInteger.valueOf(unit));
+            capacity.put(entry.getKey(), max.compareTo(CAPACITY_CAP) >= 0
+                    ? CAPACITY_CAP.intValue() : max.intValue());
         }
 
         EmcBank affordableBank = session.bank(keys, owned);
@@ -41,7 +51,8 @@ public final class ProjectEClient {
         BigInteger required = fullBank.spentEmc();
 
         boolean affordable = required.compareTo(owned) <= 0;
-        return new EmcPlan(true, supplied, required.signum() > 0 ? format(required) : null, total, affordable);
+        return new EmcPlan(true, supplied, required.signum() > 0 ? format(required) : null, total, affordable,
+                capacity);
     }
 
     private static void spend(EmcBank bank, CraftNode root, Map<ItemKey, Integer> have,

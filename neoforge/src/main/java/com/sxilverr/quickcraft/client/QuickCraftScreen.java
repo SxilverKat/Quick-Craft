@@ -177,6 +177,7 @@ public class QuickCraftScreen extends Screen {
     private String emcCostText;
     private boolean emcAffordable = true;
     private final Map<ItemKey, Integer> emcSupplied = new HashMap<>();
+    private final Map<ItemKey, Integer> emcCapacity = new HashMap<>();
     private boolean historyOpen;
     private int historyScroll;
     private List<CraftHistory.Entry> historyEntries = List.of();
@@ -274,6 +275,7 @@ public class QuickCraftScreen extends Screen {
 
     private void computeEmcPlan() {
         emcSupplied.clear();
+        emcCapacity.clear();
         emcTotalText = null;
         emcCostText = null;
         emcAffordable = true;
@@ -284,6 +286,7 @@ public class QuickCraftScreen extends Screen {
                 root, haveCounts, target, quantity, relevantKeys());
         if (!plan.access()) return;
         emcSupplied.putAll(plan.supplied());
+        emcCapacity.putAll(plan.capacity());
         emcAffordable = plan.affordable();
         if (QuickCraftClientConfig.showEmc()) {
             emcTotalText = plan.totalText();
@@ -292,7 +295,7 @@ public class QuickCraftScreen extends Screen {
     }
 
     private int nodeHave(CraftNode node) {
-        return node.freeStock + emcSupplied.getOrDefault(ItemKey.of(node.output), 0);
+        return node.freeStock;
     }
 
     private int effectiveHave(ItemKey key) {
@@ -517,7 +520,7 @@ public class QuickCraftScreen extends Screen {
         java.util.Set<ItemKey> requestKeys = relevantKeys();
 
         computeEmcPlan();
-        if (!emcSupplied.isEmpty()) {
+        if (!emcCapacity.isEmpty()) {
             root = builder.build(target, qty, overrides, ingredientChoices,
                     Availability.of(haveWithEmc()), stations, collapse, hideLoop);
         }
@@ -539,7 +542,7 @@ public class QuickCraftScreen extends Screen {
 
     private Map<ItemKey, Integer> haveWithEmc() {
         Map<ItemKey, Integer> combined = new HashMap<>(haveCounts);
-        for (Map.Entry<ItemKey, Integer> entry : emcSupplied.entrySet()) {
+        for (Map.Entry<ItemKey, Integer> entry : emcCapacity.entrySet()) {
             combined.merge(entry.getKey(), entry.getValue(), Integer::sum);
         }
         return combined;

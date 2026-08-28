@@ -64,18 +64,21 @@ public class TreeBuilder {
         List<RecipeOption> alternatives = visibleRecipes(output, resolver.recipesFor(output));
         CraftNode node = new CraftNode(output.copy(), requiredCount, alternatives, depth);
 
+        ItemKey outputKey = ItemKey.of(output);
+        int claimed = claimedStock.getOrDefault(outputKey, 0);
+        int freeStock = availability.available(outputKey) - claimed;
+        node.freeStock = Math.max(0, freeStock);
+
         node.autoRecipe = alternatives.isEmpty() ? -1 : autoBestIndex(output, alternatives, requiredCount);
         node.selectedRecipe = resolveSelection(output, alternatives, node.autoRecipe);
-        if (node.selectedRecipe < 0) return node;
+        if (node.selectedRecipe < 0) {
+            claimedStock.merge(outputKey, Math.min(node.freeStock, requiredCount), Integer::sum);
+            return node;
+        }
 
         boolean root = depth == 0;
-        ItemKey outputKey = ItemKey.of(output);
-        boolean overridden = recipeOverrides.containsKey(outputKey);
-        int freeStock = availability.available(outputKey) - claimedStock.getOrDefault(outputKey, 0);
-        node.freeStock = Math.max(0, freeStock);
         RecipeOption option = node.selected();
-        boolean satisfied = !root && collapseOwned && freeStock >= requiredCount;
-        if (satisfied && (!overridden || referencesOutput(output, option))) {
+        if (!root && collapseOwned && freeStock >= requiredCount) {
             node.owned = true;
             claimedStock.merge(outputKey, requiredCount, Integer::sum);
             return node;
