@@ -52,17 +52,16 @@ dependencies {
     mappings(loom.officialMojangMappings())
     "forge"("net.minecraftforge:forge:$minecraft-${common.mod.dep("forge_loader")}")
 
-    modCompileOnly("mezz.jei:jei-$minecraft-common-api:$jeiVersion")
-    modCompileOnly("mezz.jei:jei-$minecraft-forge-api:$jeiVersion")
-    modRuntimeOnly("mezz.jei:jei-$minecraft-forge:$jeiVersion")
+    modCompileOnly("curse.maven:jei-238222:6600311")
+    modRuntimeOnly("curse.maven:jei-238222:6600311")
 
-    modCompileOnly("maven.modrinth:just-enough-resources-jer:1.4.0.247")
+    modCompileOnly("curse.maven:just-enough-resources-240630:5057220")
 
     modCompileOnly("curse.maven:projecte-226410:4901949")
 
-    modCompileOnly("appeng:appliedenergistics2-forge:15.4.10")
-    modCompileOnly("maven.modrinth:refined-storage:1.12.4")
-    modCompileOnly("maven.modrinth:toms-storage:1.20-1.7.1")
+    modCompileOnly("curse.maven:applied-energistics-2-223794:7148487")
+    modCompileOnly("curse.maven:refined-storage-243076:4844585")
+    modCompileOnly("curse.maven:toms-storage-378609:6418133")
     modCompileOnly("maven.modrinth:sophisticated-core:1.20.1-1.3.65.2126")
     modCompileOnly("maven.modrinth:sophisticated-backpacks:1.20.1-3.24.59.1960")
 

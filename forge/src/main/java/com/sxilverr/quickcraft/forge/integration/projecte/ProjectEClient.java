@@ -17,6 +17,7 @@ import java.util.Set;
 public final class ProjectEClient {
     private static final String[] SUFFIXES = {"", "K", "M", "B", "T", "P", "E"};
     private static final BigInteger THOUSAND = BigInteger.valueOf(1000);
+    private static final BigInteger UNLIMITED = BigInteger.ONE.shiftLeft(96);
 
     private ProjectEClient() {
     }
@@ -25,11 +26,26 @@ public final class ProjectEClient {
                                ItemStack target, int quantity, Set<ItemKey> keys) {
         EmcSession session = EmcSession.openClient(player, range);
         if (session == null) return EmcPlan.none();
-        String total = format(session.emc());
+        BigInteger owned = session.emc();
+        String total = format(owned);
         if (root == null || target == null || target.isEmpty()) {
-            return new EmcPlan(true, Map.of(), null, total);
+            return new EmcPlan(true, Map.of(), null, total, true);
         }
-        EmcBank bank = session.bank(keys);
+
+        EmcBank affordableBank = session.bank(keys, owned);
+        spend(affordableBank, root, have, target, quantity);
+        Map<ItemKey, Integer> supplied = new HashMap<>(affordableBank.purchased());
+
+        EmcBank fullBank = session.bank(keys, UNLIMITED);
+        spend(fullBank, root, have, target, quantity);
+        BigInteger required = fullBank.spentEmc();
+
+        boolean affordable = required.compareTo(owned) <= 0;
+        return new EmcPlan(true, supplied, required.signum() > 0 ? format(required) : null, total, affordable);
+    }
+
+    private static void spend(EmcBank bank, CraftNode root, Map<ItemKey, Integer> have,
+                              ItemStack target, int quantity) {
         VirtualPool pool = new VirtualPool();
         for (Map.Entry<ItemKey, Integer> entry : have.entrySet()) pool.add(entry.getKey(), entry.getValue());
         pool.setEmc(bank);
@@ -40,9 +56,6 @@ public final class ProjectEClient {
             int buy = Math.min(quantity - made, bank.affordable(targetKey));
             if (buy > 0) bank.buy(targetKey, buy);
         }
-        Map<ItemKey, Integer> supplied = new HashMap<>(bank.purchased());
-        BigInteger cost = bank.spentEmc();
-        return new EmcPlan(true, supplied, cost.signum() > 0 ? format(cost) : null, total);
     }
 
     public static String format(BigInteger value) {

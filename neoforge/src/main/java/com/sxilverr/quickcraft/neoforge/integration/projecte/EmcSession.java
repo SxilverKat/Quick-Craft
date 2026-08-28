@@ -85,7 +85,7 @@ public final class EmcSession {
         return value(stack) > 0L;
     }
 
-    public EmcBank bank(Set<ItemKey> keys) {
+    public Map<ItemKey, Long> values(Set<ItemKey> keys) {
         Map<ItemKey, Long> values = new HashMap<>();
         for (ItemKey key : keys) {
             ItemStack stack = key.toStack(1);
@@ -93,7 +93,15 @@ public final class EmcSession {
             long v = value(stack);
             if (v > 0L) values.put(key, v);
         }
-        return new EmcBank(values, emc());
+        return values;
+    }
+
+    public EmcBank bank(Set<ItemKey> keys) {
+        return new EmcBank(values(keys), emc());
+    }
+
+    public EmcBank bank(Set<ItemKey> keys, BigInteger budget) {
+        return new EmcBank(values(keys), budget);
     }
 
     public void apply(EmcBank bank, Set<ItemKey> producedKeys) {

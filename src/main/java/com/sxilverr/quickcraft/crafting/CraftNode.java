@@ -17,6 +17,7 @@ public class CraftNode {
     public final List<CraftNode> children = new ArrayList<>();
     public boolean cyclic;
     public boolean owned;
+    public int freeStock;
     public boolean fitsStation = true;
     public boolean craftReachable = true;
     public List<ItemStack> tagOptions = List.of();

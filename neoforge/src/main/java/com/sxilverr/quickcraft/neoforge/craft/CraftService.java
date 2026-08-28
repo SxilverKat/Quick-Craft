@@ -17,6 +17,7 @@ import com.sxilverr.quickcraft.crafting.Station;
 import com.sxilverr.quickcraft.neoforge.crafting.StationScan;
 import com.sxilverr.quickcraft.crafting.Stations;
 import com.sxilverr.quickcraft.crafting.TreeBuilder;
+import com.sxilverr.quickcraft.neoforge.integration.projecte.EmcDeposit;
 import com.sxilverr.quickcraft.neoforge.integration.projecte.EmcSession;
 import com.sxilverr.quickcraft.neoforge.integration.projecte.ProjectEIntegration;
 import com.sxilverr.quickcraft.storage.CompositeItemSource;
@@ -44,6 +45,7 @@ import java.util.Set;
 
 public final class CraftService {
     private static final int MAX_QUANTITY = 1000000;
+    private static final int INVENTORY_SLOTS = 36;
 
     private CraftService() {
     }
@@ -56,11 +58,15 @@ public final class CraftService {
 
         List<LabeledSource> labeled = ItemSourceFactory.scan(player, QuickCraftConfig.containerScanRange());
         Deposit deposit = Deposit.to(labeled, destinationId, player);
+        if (EmcDeposit.isEmc(destinationId)) {
+            deposit.setEmcLabel(EmcDeposit.label(destinationId, EmcDeposit.targets(player)));
+        }
 
         if (QuickCraftConfig.creativeBypass() && player.getAbilities().instabuild) {
-            deposit.put(ItemKey.of(target), qty, true);
+            int given = creativeQuantity(target, qty);
+            deposit.put(ItemKey.of(target), given, true);
             playCraftSound(player);
-            return new CraftSummary(qty, qty, null, deposit.placements(), deposit.dropped(), deposit.byproducts());
+            return new CraftSummary(given, given, null, deposit.placements(), deposit.dropped(), deposit.byproducts());
         }
 
         ServerLevel level = player.serverLevel();
@@ -98,7 +104,7 @@ public final class CraftService {
             }
         }
 
-        if (!commit(source, deposit, initial, working, targetKey, emc, bank, player)) {
+        if (!commit(source, deposit, initial, working, targetKey, emc, bank, player, destinationId)) {
             return CraftSummary.aborted(qty);
         }
         if (emc != null) emc.apply(bank, working.producedKeys());
@@ -115,7 +121,8 @@ public final class CraftService {
         if (target.isEmpty()) return new CraftPreview.Result(0, qty, List.of());
 
         if (QuickCraftConfig.creativeBypass() && player.getAbilities().instabuild) {
-            return new CraftPreview.Result(qty, qty, List.of(new CraftPreview.Gain(ItemKey.of(target), qty)));
+            int given = creativeQuantity(target, qty);
+            return new CraftPreview.Result(given, given, List.of(new CraftPreview.Gain(ItemKey.of(target), given)));
         }
 
         List<LabeledSource> labeled = ItemSourceFactory.scan(player, QuickCraftConfig.containerScanRange());
@@ -135,6 +142,10 @@ public final class CraftService {
         EmcSession emc = openEmcSession(player);
         EmcBank bank = emc == null ? null : emc.bank(collectKeys(root, new HashSet<>()));
         return CraftPreview.simulate(root, owned, target, qty, bank);
+    }
+
+    private static int creativeQuantity(ItemStack target, int requested) {
+        return Math.min(requested, Math.max(1, target.getMaxStackSize()) * INVENTORY_SLOTS);
     }
 
     private static EmcSession openEmcSession(ServerPlayer player) {
@@ -178,6 +189,7 @@ public final class CraftService {
         for (LabeledSource labeled : ItemSourceFactory.scan(player, QuickCraftConfig.containerScanRange())) {
             if (labeled.depositable()) out.add(labeled);
         }
+        out.addAll(EmcDeposit.targets(player));
         return out;
     }
 
@@ -202,7 +214,9 @@ public final class CraftService {
     }
 
     private static boolean commit(ItemSource source, Deposit deposit, VirtualPool initial, VirtualPool working,
-                                  ItemKey targetKey, EmcSession emc, EmcBank bank, ServerPlayer player) {
+                                  ItemKey targetKey, EmcSession emc, EmcBank bank, ServerPlayer player, String destinationId) {
+        boolean depositToEmc = emc != null && bank != null && EmcDeposit.isEmc(destinationId);
+
         Map<ItemKey, Integer> consumed = new LinkedHashMap<>();
         Map<ItemKey, Integer> produced = new LinkedHashMap<>();
         Set<ItemKey> keys = new HashSet<>(initial.counts().keySet());
@@ -230,11 +244,11 @@ public final class CraftService {
         for (Map.Entry<ItemKey, Integer> entry : produced.entrySet()) {
             ItemKey key = entry.getKey();
             int amount = entry.getValue();
-            if (emc != null && bank != null) {
+            if (depositToEmc) {
                 long value = emc.value(key.toStack(1));
                 if (value > 0L) {
                     bank.gain(BigInteger.valueOf(value).multiply(BigInteger.valueOf(amount)));
-                    deposit.toEmc(amount);
+                    deposit.toEmc(amount, key.equals(targetKey));
                     continue;
                 }
             }

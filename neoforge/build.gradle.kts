@@ -53,14 +53,13 @@ dependencies {
     mappings(loom.officialMojangMappings())
     "neoForge"("net.neoforged:neoforge:${common.mod.dep("neoforge_loader")}")
 
-    modCompileOnly("mezz.jei:jei-$minecraft-common-api:$jeiVersion")
-    modCompileOnly("mezz.jei:jei-$minecraft-neoforge-api:$jeiVersion")
-    modRuntimeOnly("mezz.jei:jei-$minecraft-neoforge:$jeiVersion")
+    modCompileOnly("curse.maven:jei-238222:8678372")
+    modRuntimeOnly("curse.maven:jei-238222:8678372")
 
-    compileOnly("org.appliedenergistics:appliedenergistics2:19.2.17")
+    compileOnly("curse.maven:applied-energistics-2-223794:7027323")
     compileOnly("curse.maven:projecte-226410:6611984")
     compileOnly("curse.maven:refined-storage-243076:8211701")
-    modCompileOnly("maven.modrinth:just-enough-resources-jer:1.6.0.12")
+    modCompileOnly("curse.maven:just-enough-resources-240630:6174588")
     modCompileOnly("maven.modrinth:sophisticated-core:1.21.1-1.4.88.2283")
     modCompileOnly("maven.modrinth:sophisticated-backpacks:1.21.1-3.25.77.2086")
 

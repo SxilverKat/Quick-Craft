@@ -41,10 +41,11 @@ public class RecipeResolver {
     private void indexCrafting(RecipeManager recipeManager) {
         for (RecipeEntries.Entry<CraftingRecipe> entry : RecipeEntries.<CraftingRecipe>of(recipeManager, RecipeType.CRAFTING)) {
             CraftingRecipe recipe = entry.recipe();
-            if (recipe.isSpecial()) continue;
             ItemStack result = recipe.getResultItem(registryAccess);
             if (result.isEmpty()) continue;
-            add(result.getItem(), new CraftingRecipeOption(entry.id(), recipe, registryAccess));
+            CraftingRecipeOption option = new CraftingRecipeOption(entry.id(), recipe, registryAccess);
+            if (option.inputs().isEmpty()) continue;
+            add(result.getItem(), option);
         }
     }
 

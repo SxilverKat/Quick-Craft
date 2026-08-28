@@ -175,6 +175,7 @@ public class QuickCraftScreen extends Screen {
     private Button plusButton;
     private String emcTotalText;
     private String emcCostText;
+    private boolean emcAffordable = true;
     private final Map<ItemKey, Integer> emcSupplied = new HashMap<>();
     private boolean historyOpen;
     private int historyScroll;
@@ -193,6 +194,11 @@ public class QuickCraftScreen extends Screen {
         } else {
             this.minecraft.setScreen(null);
         }
+    }
+
+    private void closeAfterCraft() {
+        history.clear();
+        this.minecraft.setScreen(null);
     }
 
     private void retarget(ItemStack newTarget, boolean pushHistory) {
@@ -270,6 +276,7 @@ public class QuickCraftScreen extends Screen {
         emcSupplied.clear();
         emcTotalText = null;
         emcCostText = null;
+        emcAffordable = true;
         if (!ProjectEIntegration.available()) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
@@ -277,10 +284,15 @@ public class QuickCraftScreen extends Screen {
                 root, haveCounts, target, quantity, relevantKeys());
         if (!plan.access()) return;
         emcSupplied.putAll(plan.supplied());
+        emcAffordable = plan.affordable();
         if (QuickCraftClientConfig.showEmc()) {
             emcTotalText = plan.totalText();
             emcCostText = plan.costText();
         }
+    }
+
+    private int nodeHave(CraftNode node) {
+        return node.freeStock + emcSupplied.getOrDefault(ItemKey.of(node.output), 0);
     }
 
     private int effectiveHave(ItemKey key) {
@@ -289,18 +301,20 @@ public class QuickCraftScreen extends Screen {
 
     private void renderEmc(GuiGraphics g) {
         if (emcTotalText == null && emcCostText == null) return;
-        StringBuilder sb = new StringBuilder();
-        if (emcTotalText != null) sb.append("EMC: ").append(emcTotalText);
-        if (emcCostText != null) {
-            if (sb.length() > 0) sb.append("   ");
-            sb.append("Uses ").append(emcCostText);
-        }
-        String text = sb.toString();
-        int w = this.font.width(text);
+        String totalPart = emcTotalText == null ? "" : "EMC: " + emcTotalText;
+        String costPart = emcCostText == null ? "" : "Uses " + emcCostText;
+        String gap = (!totalPart.isEmpty() && !costPart.isEmpty()) ? "   " : "";
+
+        int w = this.font.width(totalPart + gap + costPart);
         int x = this.width - 8 - w;
         boolean stationBar = stationProblem && missingStation != null;
         if (!stationBar) g.fill(x - 6, 24, this.width, 38, COLOR_BAR);
-        g.drawString(this.font, text, x, 27, COLOR_EMC, false);
+
+        if (!totalPart.isEmpty()) g.drawString(this.font, totalPart, x, 27, COLOR_EMC, false);
+        if (!costPart.isEmpty()) {
+            int costX = x + this.font.width(totalPart + gap);
+            g.drawString(this.font, costPart, costX, 27, emcAffordable ? COLOR_EMC : COLOR_MISSING, false);
+        }
     }
 
     private void toggleSummary() {
@@ -500,6 +514,14 @@ public class QuickCraftScreen extends Screen {
             }
         }
         root = builder.build(target, qty, overrides, ingredientChoices, availability, stations, collapse, hideLoop);
+        java.util.Set<ItemKey> requestKeys = relevantKeys();
+
+        computeEmcPlan();
+        if (!emcSupplied.isEmpty()) {
+            root = builder.build(target, qty, overrides, ingredientChoices,
+                    Availability.of(haveWithEmc()), stations, collapse, hideLoop);
+        }
+
         if (showMobs && JerIntegration.available()) attachMobSources(root);
         layout = new TreeLayout(root, this::nodeWidth);
         Station missing = CraftTrees.missingStation(root);
@@ -510,10 +532,17 @@ public class QuickCraftScreen extends Screen {
         achievableCache.clear();
         maxCraftableCache = -1;
         computeSummary();
-        computeEmcPlan();
         if (!applyingAvailability) {
-            com.sxilverr.quickcraft.network.QuickCraftNetwork.requestAvailability(relevantKeys());
+            com.sxilverr.quickcraft.network.QuickCraftNetwork.requestAvailability(requestKeys);
         }
+    }
+
+    private Map<ItemKey, Integer> haveWithEmc() {
+        Map<ItemKey, Integer> combined = new HashMap<>(haveCounts);
+        for (Map.Entry<ItemKey, Integer> entry : emcSupplied.entrySet()) {
+            combined.merge(entry.getKey(), entry.getValue(), Integer::sum);
+        }
+        return combined;
     }
 
     private void attachMobSources(CraftNode node) {
@@ -537,14 +566,16 @@ public class QuickCraftScreen extends Screen {
     private java.util.Set<ItemKey> relevantKeys() {
         java.util.Set<ItemKey> keys = new java.util.HashSet<>();
         keys.add(ItemKey.of(target));
-        if (layout != null) {
-            for (NodeView v : layout.ordered) {
-                keys.add(ItemKey.of(v.node.output));
-                for (ItemStack option : v.node.tagOptions) keys.add(ItemKey.of(option));
-            }
-        }
+        collectTreeKeys(root, keys);
         keys.addAll(builder.loopIngredientKeys());
         return keys;
+    }
+
+    private void collectTreeKeys(CraftNode node, java.util.Set<ItemKey> keys) {
+        if (node == null) return;
+        keys.add(ItemKey.of(node.output));
+        for (ItemStack option : node.tagOptions) keys.add(ItemKey.of(option));
+        for (CraftNode child : node.children) collectTreeKeys(child, keys);
     }
 
     private void computeSummary() {
@@ -1371,7 +1402,7 @@ public class QuickCraftScreen extends Screen {
         if (node == root) return false;
         if (node.owned) return true;
         if (node.isBlockedByStation()) return false;
-        return effectiveHave(ItemKey.of(node.output)) >= node.requiredCount;
+        return nodeHave(node) >= node.requiredCount;
     }
 
     private ItemStack displayStack(CraftNode node) {
@@ -1603,7 +1634,7 @@ public class QuickCraftScreen extends Screen {
         if (node == root) return COLOR_ROOT;
         if (!node.craftReachable) return COLOR_DISABLED;
         if (node.owned) return COLOR_HAVE;
-        int have = effectiveHave(ItemKey.of(node.output));
+        int have = nodeHave(node);
         if (have >= node.requiredCount) return COLOR_HAVE;
         if (node.selected() == null) return COLOR_MISSING;
         return COLOR_CRAFT;
@@ -1632,7 +1663,7 @@ public class QuickCraftScreen extends Screen {
 
     private boolean computeAchievable(CraftNode node) {
         if (node.owned) return true;
-        int have = effectiveHave(ItemKey.of(node.output));
+        int have = nodeHave(node);
         if (have >= node.requiredCount) return true;
         if (!node.fitsStation) return false;
         if (node.selected() == null || node.children.isEmpty()) return false;
@@ -1878,7 +1909,7 @@ public class QuickCraftScreen extends Screen {
         if (QuickCraftConfig.creativeBypass() && mc.player != null && mc.player.getAbilities().instabuild) {
             CraftHistory.record(target, quantity);
             com.sxilverr.quickcraft.network.QuickCraftNetwork.sendCraftRequest(target, quantity, overrides, ingredientChoices, ClientDepositTargets.selectedId());
-            onClose();
+            closeAfterCraft();
             return;
         }
         if (maxMode) {
@@ -1895,7 +1926,7 @@ public class QuickCraftScreen extends Screen {
         if (preview.full()) {
             CraftHistory.record(target, quantity);
             com.sxilverr.quickcraft.network.QuickCraftNetwork.sendCraftRequest(target, quantity, overrides, ingredientChoices, ClientDepositTargets.selectedId());
-            onClose();
+            closeAfterCraft();
             return;
         }
         Minecraft.getInstance().setScreen(
@@ -1905,7 +1936,7 @@ public class QuickCraftScreen extends Screen {
     private void onCraftMax() {
         CraftHistory.record(target, maxCraftable());
         com.sxilverr.quickcraft.network.QuickCraftNetwork.sendCraftRequest(target, CRAFT_MAX, overrides, ingredientChoices, ClientDepositTargets.selectedId());
-        onClose();
+        closeAfterCraft();
     }
 
     private static String trim(String text, int max) {

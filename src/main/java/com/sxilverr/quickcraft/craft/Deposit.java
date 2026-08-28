@@ -16,6 +16,7 @@ public final class Deposit {
     private final Map<String, Integer> tally = new LinkedHashMap<>();
     private int dropped;
     private int byproducts;
+    private String emcLabel = "your EMC";
 
     private Deposit(List<LabeledSource> sinks, ServerPlayer player) {
         this.sinks = sinks;
@@ -57,8 +58,14 @@ public final class Deposit {
         }
     }
 
-    public void toEmc(int amount) {
-        if (amount > 0) tally.merge("your EMC", amount, Integer::sum);
+    public void setEmcLabel(String label) {
+        if (label != null && !label.isEmpty()) this.emcLabel = label;
+    }
+
+    public void toEmc(int amount, boolean target) {
+        if (amount <= 0) return;
+        if (target) tally.merge(emcLabel, amount, Integer::sum);
+        else byproducts += amount;
     }
 
     private static String feedbackName(LabeledSource sink) {
