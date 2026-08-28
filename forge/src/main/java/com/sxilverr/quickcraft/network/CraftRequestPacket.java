@@ -132,7 +132,8 @@ public class CraftRequestPacket {
         }
         if (summary.byproducts() > 0) {
             if (!first) sb.append(", ");
-            sb.append("+").append(summary.byproducts()).append(" leftover items");
+            sb.append("+").append(summary.byproducts())
+                    .append(summary.byproducts() == 1 ? " leftover item" : " leftover items");
         }
         return msg.append(Component.literal(sb.toString()).withStyle(ChatFormatting.GRAY));
     }

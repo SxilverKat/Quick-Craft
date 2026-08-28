@@ -95,6 +95,7 @@ public class QuickCraftScreen extends Screen {
     private static final int HIST_MAX_VISIBLE = 8;
     private static final int CTRL_W = 216;
     private static final long CONTROLS_SLIDE = 160;
+    private static final int TAB_BTN_W = 28;
     private static final int COPY_DROP_W = 152;
     private static final int COPY_ROW_H = 14;
     private static final String[] COPY_OPTIONS = {"Copy full list", "Copy missing materials", "Copy material shortages"};
@@ -961,7 +962,7 @@ public class QuickCraftScreen extends Screen {
 
         int pad = 5;
         int[] colors = {COLOR_ROOT, COLOR_HAVE, COLOR_CRAFT, COLOR_MISSING, COLOR_DISABLED};
-        String[] labels = {"End result item", "Items you have", "Item being crafted", "Missing materials",
+        String[] labels = {"End result item", "Items you have", "Items being crafted", "Missing materials",
                 "Can't craft (no station)"};
         int y = top + pad;
         for (int i = 0; i < colors.length; i++) {
@@ -1156,13 +1157,13 @@ public class QuickCraftScreen extends Screen {
         int pinX = px + PANEL_W - 30;
         int pinY = top + 2;
         boolean pinned = BookmarkOverlay.isActive();
-        g.fill(pinX, pinY, pinX + 28, pinY + 11, pinned ? 0xFF4A3A10 : 0x80000000);
-        g.drawString(this.font, "Pin", pinX + 6, pinY + 2, pinned ? COLOR_CRAFT : 0xFFB0B0B0, false);
+        g.fill(pinX, pinY, pinX + TAB_BTN_W, pinY + 11, pinned ? 0xFF4A3A10 : 0x80000000);
+        drawTabLabel(g, "Pin", pinX, pinY, pinned ? COLOR_CRAFT : 0xFFB0B0B0);
 
         int copyX = px + PANEL_W - 60;
         boolean copyHover = overCopyButton(mouseX, mouseY);
-        g.fill(copyX, pinY, copyX + 28, pinY + 11, (copyMenuOpen || copyHover) ? 0xFF3A3A3A : 0x80000000);
-        g.drawString(this.font, "Copy", copyX + 4, pinY + 2, 0xFFB0B0B0, false);
+        g.fill(copyX, pinY, copyX + TAB_BTN_W, pinY + 11, (copyMenuOpen || copyHover) ? 0xFF3A3A3A : 0x80000000);
+        drawTabLabel(g, "Copy", copyX, pinY, 0xFFB0B0B0);
 
         int listTop = top + 17;
         int maxRows = Math.max(0, (bottom - listTop) / PANEL_ROW_H);
@@ -1206,6 +1207,10 @@ public class QuickCraftScreen extends Screen {
         }
     }
 
+    private void drawTabLabel(GuiGraphics g, String text, int x, int y, int color) {
+        g.drawString(this.font, text, x + (TAB_BTN_W - this.font.width(text)) / 2, y + 2, color, false);
+    }
+
     private int summaryPx() {
         return this.width - PANEL_W - 6;
     }
@@ -1213,7 +1218,7 @@ public class QuickCraftScreen extends Screen {
     private boolean overCopyButton(double mx, double my) {
         if (!showSummary) return false;
         int copyX = summaryPx() + PANEL_W - 60;
-        return mx >= copyX && mx <= copyX + 28 && my >= 28 && my <= 39;
+        return mx >= copyX && mx <= copyX + TAB_BTN_W && my >= 28 && my <= 39;
     }
 
     private int copyDropX() {
@@ -1305,7 +1310,7 @@ public class QuickCraftScreen extends Screen {
     private boolean overSummaryPin(double mouseX, double mouseY) {
         int pinX = this.width - PANEL_W - 6 + PANEL_W - 30;
         int pinY = 28;
-        return mouseX >= pinX && mouseX <= pinX + 28 && mouseY >= pinY && mouseY <= pinY + 11;
+        return mouseX >= pinX && mouseX <= pinX + TAB_BTN_W && mouseY >= pinY && mouseY <= pinY + 11;
     }
 
     private int nodeWidth(CraftNode node) {
@@ -1491,7 +1496,7 @@ public class QuickCraftScreen extends Screen {
         List<Component> lines = new ArrayList<>();
         lines.add(node.output.getHoverName());
         if (node == root) {
-            lines.add(Component.literal("End result - the item you're crafting").withStyle(ChatFormatting.BLUE));
+            lines.add(Component.literal("End result").withStyle(ChatFormatting.BLUE));
         }
         int have = haveCounts.getOrDefault(ItemKey.of(node.output), 0);
         int fromEmc = emcSupplied.getOrDefault(ItemKey.of(node.output), 0);
