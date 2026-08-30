@@ -104,12 +104,12 @@ public class QuickCraftScreen extends GuiScreen {
     private static final int COPY_ROW_H = 14;
     private static final String[] COPY_OPTIONS = {"Copy full list", "Copy missing materials", "Copy material shortages"};
     private static final String[] CONTROL_LINES = {
-            "Drag / Scroll - pan / zoom",
-            "Left-click - swap recipe",
-            "Middle-click - view item's tree",
-            "W / S or Up / Down - switch tag item",
-            "Right-click - show / hide recipe",
-            "Ctrl-click - reset preferences",
+            "Drag/Scroll: pan/zoom",
+            "Left-click: swap recipe",
+            "Middle-click: view item's tree",
+            "W/S or Up/Down: switch tag item",
+            "Right-click: show/hide recipe",
+            "Ctrl-click: reset preferences",
     };
 
     private static final int ID_MINUS = 10;
@@ -1572,7 +1572,10 @@ public class QuickCraftScreen extends GuiScreen {
         int have = ownedValue == null ? 0 : ownedValue;
         Integer emcValue = emcSupplied.get(ItemKey.of(node.output));
         int fromEmc = emcValue == null ? 0 : emcValue;
-        lines.add(TextFormatting.GRAY + "Required: " + node.requiredCount);
+        String requiredLine = "Required: " + node.requiredCount;
+        String requiredStacks = stackBreakdown(node.requiredCount, node.output.getMaxStackSize());
+        if (!requiredStacks.isEmpty()) requiredLine += " " + requiredStacks;
+        lines.add(TextFormatting.GRAY + requiredLine);
         String availLine = "Available: " + have;
         if (fromEmc > 0) availLine += " (+" + fromEmc + " from EMC)";
         lines.add(TextFormatting.GRAY + availLine);
@@ -2089,6 +2092,14 @@ public class QuickCraftScreen extends GuiScreen {
         QuickCraftNetwork.sendCraftRequest(target, CRAFT_MAX, overrides, ingredientChoices,
                 ClientDepositTargets.selectedId());
         closeAfterCraft();
+    }
+
+    private static String stackBreakdown(int amount, int stackSize) {
+        if (stackSize <= 1 || amount <= stackSize) return "";
+        int stacks = amount / stackSize;
+        int remainder = amount % stackSize;
+        if (remainder == 0) return stacks + "(" + stackSize + ")";
+        return stacks + "(" + stackSize + ") + " + remainder;
     }
 
     private static String trim(String text, int max) {

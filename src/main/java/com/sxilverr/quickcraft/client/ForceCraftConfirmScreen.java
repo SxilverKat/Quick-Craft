@@ -75,7 +75,7 @@ public class ForceCraftConfirmScreen extends GuiScreen {
 
         String sub = "Can craft " + preview.craftable() + " of " + quantity + " x " + target.getDisplayName();
         Draw.centeredString(this.fontRenderer, sub, cx, this.height / 2 - 62, 0xFFC0C0C0);
-        Draw.centeredString(this.fontRenderer, "Force Craft makes as many as your materials allow.",
+        Draw.centeredString(this.fontRenderer, "Force Craft makes as many items as your materials allow.",
                 cx, this.height / 2 - 50, 0xFF909090);
 
         super.drawScreen(mouseX, mouseY, partialTicks);
