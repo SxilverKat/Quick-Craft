@@ -64,6 +64,9 @@ public class QuickCraftJeiPlugin implements IModPlugin {
 
             ItemStack fromBookmark = asStack(runtime.getBookmarkOverlay().getIngredientUnderMouse());
             if (!fromBookmark.isEmpty()) return fromBookmark;
+
+            ItemStack fromRecipes = asStack(runtime.getRecipesGui().getIngredientUnderMouse());
+            if (!fromRecipes.isEmpty()) return fromRecipes;
         } catch (Throwable t) {
             return ItemStack.EMPTY;
         }
