@@ -2,13 +2,13 @@
   {
     "modid": "quickcraft",
     "name": "Quick Craft",
-    "description": "Craft an entire recipe tree in one click. A JEI addon that shows the full crafting tree for any item and batch-crafts it from your inventory and nearby storage.",
+    "description": "Effortless instant autocrafting. Microcrafting is a thing of the past!",
     "version": "${version}",
     "mcversion": "${mcversion}",
     "url": "https://www.curseforge.com/minecraft/mc-mods/quick-craft",
     "authorList": ["Sxilverr"],
     "credits": "",
-    "logoFile": "",
+    "logoFile": "icon.png",
     "screenshots": [],
     "dependencies": []
   }
