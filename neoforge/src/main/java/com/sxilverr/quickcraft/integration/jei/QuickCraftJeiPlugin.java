@@ -12,6 +12,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.fml.ModList;
 
 @JeiPlugin
 public class QuickCraftJeiPlugin implements IModPlugin {
@@ -28,6 +29,7 @@ public class QuickCraftJeiPlugin implements IModPlugin {
     @Override
     public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
         this.runtime = jeiRuntime;
+        if (emiLoaded()) return;
         QuickCraftIntegrations.setHoveredItemProvider(this::hoveredItem);
         QuickCraftIntegrations.setRecipeViewer(this::showRecipe);
         QuickCraftIntegrations.setTextInputFocused(this::searchFocused);
@@ -36,9 +38,18 @@ public class QuickCraftJeiPlugin implements IModPlugin {
     @Override
     public void onRuntimeUnavailable() {
         this.runtime = null;
+        if (emiLoaded()) return;
         QuickCraftIntegrations.setHoveredItemProvider(null);
         QuickCraftIntegrations.setRecipeViewer(null);
         QuickCraftIntegrations.setTextInputFocused(null);
+    }
+
+    private static boolean emiLoaded() {
+        try {
+            return ModList.get().isLoaded("emi");
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     private boolean searchFocused() {

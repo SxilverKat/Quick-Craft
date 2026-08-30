@@ -59,6 +59,7 @@ dependencies {
     compileOnly("curse.maven:applied-energistics-2-223794:7027323")
     compileOnly("curse.maven:projecte-226410:6611984")
     compileOnly("curse.maven:refined-storage-243076:8211701")
+    modCompileOnly("maven.modrinth:emi:1.1.24+1.21.1+neoforge")
     modCompileOnly("curse.maven:just-enough-resources-240630:6174588")
     modCompileOnly("maven.modrinth:sophisticated-core:1.21.1-1.4.88.2283")
     modCompileOnly("maven.modrinth:sophisticated-backpacks:1.21.1-3.25.77.2086")

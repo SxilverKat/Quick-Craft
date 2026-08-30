@@ -55,6 +55,8 @@ dependencies {
     modCompileOnly("curse.maven:jei-238222:6600311")
     modRuntimeOnly("curse.maven:jei-238222:6600311")
 
+    modCompileOnly("maven.modrinth:emi:1.1.24+1.20.1+forge")
+
     modCompileOnly("curse.maven:just-enough-resources-240630:5057220")
 
     modCompileOnly("curse.maven:projecte-226410:4901949")

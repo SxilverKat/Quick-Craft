@@ -32,3 +32,10 @@ type = "optional"
 versionRange = "[19,)"
 ordering = "AFTER"
 side = "CLIENT"
+
+[[dependencies.${id}]]
+modId = "emi"
+type = "optional"
+versionRange = "*"
+ordering = "AFTER"
+side = "CLIENT"
