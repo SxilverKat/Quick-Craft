@@ -100,12 +100,12 @@ public class QuickCraftScreen extends Screen {
     private static final int COPY_ROW_H = 14;
     private static final String[] COPY_OPTIONS = {"Copy full list", "Copy missing materials", "Copy material shortages"};
     private static final String[] CONTROL_LINES = {
-            "Drag / Scroll - pan / zoom",
-            "Left-click - swap recipe",
-            "Middle-click - view item's tree",
-            "W / S or Up / Down - switch tag item",
-            "Right-click - show / hide recipe",
-            "Ctrl-click - reset preferences",
+            "Drag/Scroll: pan/zoom",
+            "Left-click: swap recipe",
+            "Middle-click: view item's tree",
+            "W/S or Up/Down: switch tag item",
+            "Right-click: show/hide recipe",
+            "Ctrl-click: reset preferences",
     };
 
     private ItemStack target;
@@ -1534,7 +1534,10 @@ public class QuickCraftScreen extends Screen {
         }
         int have = haveCounts.getOrDefault(ItemKey.of(node.output), 0);
         int fromEmc = emcSupplied.getOrDefault(ItemKey.of(node.output), 0);
-        lines.add(Component.literal("Required: " + node.requiredCount).withStyle(ChatFormatting.GRAY));
+        String requiredLine = "Required: " + node.requiredCount;
+        String requiredStacks = stackBreakdown(node.requiredCount, node.output.getMaxStackSize());
+        if (!requiredStacks.isEmpty()) requiredLine += " " + requiredStacks;
+        lines.add(Component.literal(requiredLine).withStyle(ChatFormatting.GRAY));
         String availLine = "Available: " + have;
         if (fromEmc > 0) availLine += " (+" + fromEmc + " from EMC)";
         lines.add(Component.literal(availLine).withStyle(ChatFormatting.GRAY));
@@ -1940,6 +1943,14 @@ public class QuickCraftScreen extends Screen {
         CraftHistory.record(target, maxCraftable());
         com.sxilverr.quickcraft.network.QuickCraftNetwork.sendCraftRequest(target, CRAFT_MAX, overrides, ingredientChoices, ClientDepositTargets.selectedId());
         closeAfterCraft();
+    }
+
+    private static String stackBreakdown(int amount, int stackSize) {
+        if (stackSize <= 1 || amount <= stackSize) return "";
+        int stacks = amount / stackSize;
+        int remainder = amount % stackSize;
+        if (remainder == 0) return stacks + "(" + stackSize + ")";
+        return stacks + "(" + stackSize + ") + " + remainder;
     }
 
     private static String trim(String text, int max) {

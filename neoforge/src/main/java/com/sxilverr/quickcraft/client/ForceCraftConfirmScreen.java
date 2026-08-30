@@ -70,7 +70,7 @@ public class ForceCraftConfirmScreen extends Screen {
         String sub = "Can craft " + preview.craftable() + " of " + quantity + " × "
                 + target.getHoverName().getString();
         g.drawCenteredString(this.font, sub, cx, this.height / 2 - 62, 0xFFC0C0C0);
-        g.drawCenteredString(this.font, "Force Craft makes as many as your materials allow.",
+        g.drawCenteredString(this.font, "Force Craft makes as many items as your materials allow.",
                 cx, this.height / 2 - 50, 0xFF909090);
 
         for (net.minecraft.client.gui.components.Renderable renderable : this.renderables) {
