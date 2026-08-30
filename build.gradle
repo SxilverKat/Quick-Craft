@@ -12,7 +12,7 @@ buildscript {
 apply plugin: 'net.minecraftforge.gradle.forge'
 apply plugin: 'idea'
 
-version = "${mod_version}-mc${mc_version}"
+version = "${mod_version}-${mc_version}"
 group = mod_group
 archivesBaseName = mod_id
 
