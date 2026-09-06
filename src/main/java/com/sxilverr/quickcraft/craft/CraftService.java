@@ -4,6 +4,7 @@ import com.sxilverr.quickcraft.QuickCraftConfig;
 import com.sxilverr.quickcraft.crafting.Availability;
 import com.sxilverr.quickcraft.crafting.CraftNode;
 import com.sxilverr.quickcraft.crafting.CraftTrees;
+import com.sxilverr.quickcraft.crafting.EmcLookup;
 import com.sxilverr.quickcraft.crafting.ItemKey;
 import com.sxilverr.quickcraft.crafting.RecipeResolver;
 import com.sxilverr.quickcraft.crafting.ServerRecipeCache;
@@ -73,6 +74,9 @@ public final class CraftService {
         Availability availability = Availability.Factory.of(ownedCounts(snapshot));
         Stations stations = StationScan.detect(player.world, player);
 
+        EmcSession emc = openEmcSession(player);
+        builder.setEmcLookup(lookupFor(emc));
+
         CraftNode root = builder.build(target, qty, overrides, ingredientChoices, availability, stations,
                 QuickCraftConfig.collapseOwnedItems(), QuickCraftConfig.hideLoopingRecipes());
         Station missing = CraftTrees.missingStation(root);
@@ -81,7 +85,6 @@ public final class CraftService {
         VirtualPool initial = poolFrom(snapshot);
         VirtualPool working = initial.copy();
 
-        EmcSession emc = openEmcSession(player);
         EmcBank bank = null;
         if (emc != null) {
             bank = emc.bank(collectKeys(root, new HashSet<ItemKey>()));
@@ -134,16 +137,29 @@ public final class CraftService {
 
         Availability availability = Availability.Factory.of(owned);
         Stations stations = StationScan.detect(player.world, player);
-        CraftNode root = builder.build(target, qty, overrides, ingredientChoices, availability, stations,
-                QuickCraftConfig.collapseOwnedItems(), QuickCraftConfig.hideLoopingRecipes());
 
         EmcSession emc = openEmcSession(player);
+        builder.setEmcLookup(lookupFor(emc));
+
+        CraftNode root = builder.build(target, qty, overrides, ingredientChoices, availability, stations,
+                QuickCraftConfig.collapseOwnedItems(), QuickCraftConfig.hideLoopingRecipes());
         EmcBank bank = emc == null ? null : emc.bank(collectKeys(root, new HashSet<ItemKey>()));
         return CraftPreview.simulate(root, owned, target, qty, bank);
     }
 
     private static int creativeQuantity(ItemStack target, int requested) {
         return Math.min(requested, Math.max(1, target.getMaxStackSize()) * INVENTORY_SLOTS);
+    }
+
+    private static EmcLookup lookupFor(final EmcSession emc) {
+        if (emc == null) return EmcLookup.NONE;
+        return new EmcLookup() {
+            @Override
+            public boolean obtainable(ItemKey key) {
+                ItemStack stack = key.toStack(1);
+                return emc.learned(stack) && emc.value(stack) > 0L;
+            }
+        };
     }
 
     private static EmcSession openEmcSession(EntityPlayerMP player) {

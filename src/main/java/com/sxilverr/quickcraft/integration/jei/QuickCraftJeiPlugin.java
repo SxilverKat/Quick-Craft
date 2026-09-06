@@ -1,17 +1,35 @@
 package com.sxilverr.quickcraft.integration.jei;
 
 import com.sxilverr.quickcraft.integration.HoveredItemProvider;
+import com.sxilverr.quickcraft.integration.OriginHint;
+import com.sxilverr.quickcraft.integration.OriginProvider;
 import com.sxilverr.quickcraft.integration.QuickCraftIntegrations;
 import com.sxilverr.quickcraft.integration.RecipeViewer;
 import com.sxilverr.quickcraft.integration.TextInputFocus;
 import mezz.jei.api.IJeiRuntime;
 import mezz.jei.api.IModPlugin;
+import mezz.jei.api.IRecipeRegistry;
 import mezz.jei.api.JEIPlugin;
 import mezz.jei.api.recipe.IFocus;
+import mezz.jei.api.recipe.IRecipeCategory;
+import mezz.jei.api.recipe.VanillaRecipeCategoryUid;
 import net.minecraft.item.ItemStack;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 @JEIPlugin
 public class QuickCraftJeiPlugin implements IModPlugin {
+    private static final Set<String> SKIP_CATEGORIES = new HashSet<String>(Arrays.asList(
+            VanillaRecipeCategoryUid.CRAFTING,
+            VanillaRecipeCategoryUid.FUEL,
+            VanillaRecipeCategoryUid.ANVIL,
+            VanillaRecipeCategoryUid.INFORMATION));
+
     private IJeiRuntime runtime;
 
     @Override
@@ -29,12 +47,43 @@ public class QuickCraftJeiPlugin implements IModPlugin {
                 showRecipe(stack, uses);
             }
         });
+        QuickCraftIntegrations.setOriginProvider(new OriginProvider() {
+            @Override
+            public List<OriginHint> find(ItemStack output) {
+                return findOrigins(output);
+            }
+        });
         QuickCraftIntegrations.setTextInputFocused(new TextInputFocus() {
             @Override
             public boolean isFocused() {
                 return searchFocused();
             }
         });
+    }
+
+    @SuppressWarnings("rawtypes")
+    private List<OriginHint> findOrigins(ItemStack stack) {
+        if (runtime == null || stack == null || stack.isEmpty()) return Collections.emptyList();
+        try {
+            IRecipeRegistry registry = runtime.getRecipeRegistry();
+            IFocus<ItemStack> focus = registry.createFocus(IFocus.Mode.OUTPUT, stack);
+            List<OriginHint> hints = new ArrayList<OriginHint>();
+            for (IRecipeCategory category : registry.getRecipeCategories(focus)) {
+                if (category == null || SKIP_CATEGORIES.contains(category.getUid())) continue;
+                ItemStack icon = ItemStack.EMPTY;
+                for (Object catalyst : registry.getRecipeCatalysts(category)) {
+                    ItemStack candidate = asStack(catalyst);
+                    if (!candidate.isEmpty()) {
+                        icon = candidate;
+                        break;
+                    }
+                }
+                hints.add(new OriginHint(icon, category.getTitle()));
+            }
+            return hints;
+        } catch (Throwable t) {
+            return Collections.emptyList();
+        }
     }
 
     private boolean searchFocused() {

@@ -2,9 +2,13 @@ package com.sxilverr.quickcraft.integration;
 
 import net.minecraft.item.ItemStack;
 
+import java.util.Collections;
+import java.util.List;
+
 public final class QuickCraftIntegrations {
     private static HoveredItemProvider hoveredItemProvider;
     private static RecipeViewer recipeViewer;
+    private static OriginProvider originProvider;
     private static TextInputFocus textInputFocused;
 
     private QuickCraftIntegrations() {
@@ -42,5 +46,19 @@ public final class QuickCraftIntegrations {
 
     public static void showUses(ItemStack stack) {
         if (recipeViewer != null && stack != null && !stack.isEmpty()) recipeViewer.show(stack, true);
+    }
+
+    public static void setOriginProvider(OriginProvider provider) {
+        originProvider = provider;
+    }
+
+    public static boolean canFindOrigins() {
+        return originProvider != null;
+    }
+
+    public static List<OriginHint> origins(ItemStack stack) {
+        if (originProvider == null || stack == null || stack.isEmpty()) return Collections.emptyList();
+        List<OriginHint> hints = originProvider.find(stack);
+        return hints == null ? Collections.<OriginHint>emptyList() : hints;
     }
 }

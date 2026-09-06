@@ -7,12 +7,14 @@ import com.sxilverr.quickcraft.crafting.Availability;
 import com.sxilverr.quickcraft.crafting.CraftNode;
 import com.sxilverr.quickcraft.crafting.CraftTrees;
 import com.sxilverr.quickcraft.crafting.ItemKey;
+import com.sxilverr.quickcraft.crafting.ItemOrigins;
 import com.sxilverr.quickcraft.crafting.RecipeOption;
 import com.sxilverr.quickcraft.crafting.RecipeResolver;
 import com.sxilverr.quickcraft.crafting.Station;
 import com.sxilverr.quickcraft.crafting.StationProviders;
 import com.sxilverr.quickcraft.crafting.Stations;
 import com.sxilverr.quickcraft.crafting.TreeBuilder;
+import com.sxilverr.quickcraft.integration.OriginHint;
 import com.sxilverr.quickcraft.integration.QuickCraftIntegrations;
 import com.sxilverr.quickcraft.integration.jer.DropLine;
 import com.sxilverr.quickcraft.integration.jer.JerIntegration;
@@ -77,6 +79,8 @@ public class QuickCraftScreen extends GuiScreen {
     private static final int MAX_NODE_WIDTH = 300;
     private static final int COLOR_MOB = 0xFFB07CE8;
     private static final int MAX_MOB_SOURCES = 10;
+    private static final long ORIGIN_CYCLE = 1500;
+    private static final int MAX_ORIGIN_LABELS = 4;
     private static final int COLOR_EMC = 0xFF6FC3DF;
     private static final int DEP_X = 6;
     private static final int DEP_Y = 4;
@@ -459,6 +463,7 @@ public class QuickCraftScreen extends GuiScreen {
         }
 
         if (showMobs && JerIntegration.available()) attachMobSources(root);
+        primeOrigins(root);
         layout = new TreeLayout(root, widthFn());
         Station missing = CraftTrees.missingStation(root);
         if (missing != missingStation) stationSelectedIndex = 0;
@@ -1391,7 +1396,9 @@ public class QuickCraftScreen extends GuiScreen {
         int nameNeeded = 30 + this.fontRenderer.getStringWidth(node.output.getDisplayName()) + badgeExtra;
 
         RecipeOption recipe = node.selected();
-        boolean hasStationIcon = recipe != null && !node.owned && !StationIcons.icon(recipe.station()).isEmpty();
+        boolean hasStationIcon = recipe == null
+                ? hasOriginIcon(node)
+                : !node.owned && !StationIcons.icon(recipe.station()).isEmpty();
         StringBuilder sub = new StringBuilder();
         if (node != root) {
             sub.append("need ").append(node.requiredCount);
@@ -1456,12 +1463,62 @@ public class QuickCraftScreen extends GuiScreen {
     private ItemStack cornerIconFor(CraftNode node) {
         if (isCompleted(node)) {
             ItemStack icon = sourceIcons.get(ItemKey.of(node.output));
-            return icon == null ? ItemStack.EMPTY : icon;
+            if (icon != null && !icon.isEmpty()) return icon;
+            return originIcon(node);
         }
         RecipeOption recipe = node.selected();
-        if (recipe == null) return ItemStack.EMPTY;
+        if (recipe == null) return originIcon(node);
         if (recipe.station() == Station.CRAFTING && recipe.fitsInventory()) return PlayerHeadIcon.get();
         return stationIconFor(recipe.station());
+    }
+
+    private List<OriginHint> originsFor(CraftNode node) {
+        if (node.isCraftable() || node.isMobSource()) return Collections.emptyList();
+        return ItemOrigins.of(node.output);
+    }
+
+    private void primeOrigins(CraftNode node) {
+        if (node == null) return;
+        originsFor(node);
+        for (CraftNode child : node.children) primeOrigins(child);
+    }
+
+    private boolean hasOriginIcon(CraftNode node) {
+        for (OriginHint hint : originsFor(node)) {
+            if (!hint.icon().isEmpty()) return true;
+        }
+        return false;
+    }
+
+    private ItemStack originIcon(CraftNode node) {
+        List<OriginHint> hints = originsFor(node);
+        int count = 0;
+        for (OriginHint hint : hints) {
+            if (!hint.icon().isEmpty()) count++;
+        }
+        if (count == 0) return ItemStack.EMPTY;
+        int index = animate ? (int) ((now() / ORIGIN_CYCLE) % count) : 0;
+        for (OriginHint hint : hints) {
+            if (hint.icon().isEmpty()) continue;
+            if (index-- == 0) return hint.icon();
+        }
+        return ItemStack.EMPTY;
+    }
+
+    private String originLabel(CraftNode node) {
+        List<String> labels = new ArrayList<String>();
+        for (OriginHint hint : originsFor(node)) {
+            if (hint.label() != null && !hint.label().isEmpty()) labels.add(hint.label());
+        }
+        if (labels.isEmpty()) return "";
+        int shown = Math.min(labels.size(), MAX_ORIGIN_LABELS);
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < shown; i++) {
+            if (i > 0) out.append(", ");
+            out.append(labels.get(i));
+        }
+        if (labels.size() > shown) out.append(", +").append(labels.size() - shown).append(" more");
+        return out.toString();
     }
 
     private void drawNode(NodeView view) {
@@ -1636,6 +1693,8 @@ public class QuickCraftScreen extends GuiScreen {
             }
         } else {
             lines.add(TextFormatting.DARK_GRAY + "Base material - no recipe");
+            String origins = originLabel(node);
+            if (!origins.isEmpty()) lines.add(TextFormatting.GRAY + "Made in: " + origins);
         }
         if (!ItemKey.of(node.output).equals(ItemKey.of(target))) {
             lines.add(TextFormatting.AQUA + "Middle-click: view this item's tree");

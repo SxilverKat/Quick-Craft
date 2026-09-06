@@ -2,6 +2,7 @@ package com.sxilverr.quickcraft.client;
 
 import com.sxilverr.quickcraft.QuickCraft;
 import com.sxilverr.quickcraft.QuickCraftConfig;
+import com.sxilverr.quickcraft.crafting.ItemOrigins;
 import com.sxilverr.quickcraft.integration.QuickCraftIntegrations;
 import com.sxilverr.quickcraft.network.QuickCraftNetwork;
 import net.minecraft.client.Minecraft;
@@ -96,6 +97,7 @@ public final class QuickCraftClientEvents {
     @SubscribeEvent
     public static void onDisconnect(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
         ClientRecipeCache.clear();
+        ItemOrigins.invalidate();
         BookmarkOverlay.clear();
     }
 

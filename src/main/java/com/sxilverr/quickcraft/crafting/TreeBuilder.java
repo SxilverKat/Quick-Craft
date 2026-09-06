@@ -5,6 +5,7 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.Ingredient;
 import net.minecraft.util.ResourceLocation;
+import net.minecraftforge.common.ForgeHooks;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,6 +33,11 @@ public class TreeBuilder {
     private final Map<ItemKey, Integer> claimedStock = new HashMap<ItemKey, Integer>();
     private final Set<ItemKey> loopIngredients = new HashSet<ItemKey>();
     private int nodeCount;
+    private EmcLookup emcLookup = EmcLookup.NONE;
+
+    public void setEmcLookup(EmcLookup lookup) {
+        this.emcLookup = lookup == null ? EmcLookup.NONE : lookup;
+    }
 
     public TreeBuilder(RecipeResolver resolver, List<Item> preferred, int maxDepth, int maxNodes) {
         this.resolver = resolver;
@@ -225,12 +231,48 @@ public class TreeBuilder {
     }
 
     private List<RecipeOption> visibleRecipes(ItemStack output, List<RecipeOption> alternatives) {
-        if (!hideLooping || alternatives.isEmpty()) return alternatives;
-        List<RecipeOption> visible = new ArrayList<RecipeOption>();
+        if (alternatives.isEmpty()) return alternatives;
+        List<RecipeOption> usable = new ArrayList<RecipeOption>();
         for (RecipeOption option : alternatives) {
+            if (!needsMissingCatalyst(option)) usable.add(option);
+        }
+        if (!hideLooping || usable.isEmpty()) return usable;
+        List<RecipeOption> visible = new ArrayList<RecipeOption>();
+        for (RecipeOption option : usable) {
             if (!hidesAsLoop(output, option)) visible.add(option);
         }
-        return visible.isEmpty() ? alternatives : visible;
+        return visible;
+    }
+
+    private boolean needsMissingCatalyst(RecipeOption option) {
+        for (Ingredient ingredient : option.inputs()) {
+            if (Ingredients.isEmpty(ingredient)) continue;
+            ItemStack[] items = Ingredients.matching(ingredient);
+            if (items.length == 0) continue;
+            boolean catalyst = true;
+            for (ItemStack item : items) {
+                if (!isCatalyst(item)) {
+                    catalyst = false;
+                    break;
+                }
+            }
+            if (!catalyst) continue;
+            boolean owned = false;
+            for (ItemStack item : items) {
+                if (availability.available(ItemKey.of(item)) > 0) {
+                    owned = true;
+                    break;
+                }
+            }
+            if (!owned) return true;
+        }
+        return false;
+    }
+
+    private static boolean isCatalyst(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return false;
+        ItemStack remainder = ForgeHooks.getContainerItem(stack);
+        return remainder != null && !remainder.isEmpty() && remainder.getItem() == stack.getItem();
     }
 
     private boolean hidesAsLoop(ItemStack output, RecipeOption option) {
@@ -283,6 +325,14 @@ public class TreeBuilder {
         }
         for (ItemStack stack : items) {
             if (availability.available(ItemKey.of(stack)) > 0) return stack.copy();
+        }
+        for (Item pref : preferred) {
+            for (ItemStack stack : items) {
+                if (stack.getItem() == pref && emcLookup.obtainable(ItemKey.of(stack))) return stack.copy();
+            }
+        }
+        for (ItemStack stack : items) {
+            if (emcLookup.obtainable(ItemKey.of(stack))) return stack.copy();
         }
         for (Item pref : preferred) {
             for (ItemStack stack : items) {
