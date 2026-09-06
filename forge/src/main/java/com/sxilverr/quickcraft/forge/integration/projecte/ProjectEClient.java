@@ -33,8 +33,10 @@ public final class ProjectEClient {
             return new EmcPlan(true, Map.of(), null, total, true, Map.of());
         }
 
+        ItemKey targetKey = ItemKey.of(target);
         Map<ItemKey, Integer> capacity = new HashMap<>();
         for (Map.Entry<ItemKey, Long> entry : session.values(keys).entrySet()) {
+            if (entry.getKey().equals(targetKey)) continue;
             long unit = entry.getValue();
             if (unit <= 0L) continue;
             BigInteger max = owned.divide(BigInteger.valueOf(unit));

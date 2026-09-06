@@ -2,6 +2,7 @@ package com.sxilverr.quickcraft.crafting;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import com.sxilverr.quickcraft.platform.Services;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -36,6 +37,11 @@ public class TreeBuilder {
     private final Map<ItemKey, Integer> claimedStock = new HashMap<>();
     private final Set<ItemKey> loopIngredients = new HashSet<>();
     private int nodeCount;
+    private EmcLookup emcLookup = EmcLookup.NONE;
+
+    public void setEmcLookup(EmcLookup lookup) {
+        this.emcLookup = lookup == null ? EmcLookup.NONE : lookup;
+    }
 
     public TreeBuilder(RecipeResolver resolver, List<Item> preferred, int maxDepth, int maxNodes) {
         this.resolver = resolver;
@@ -217,12 +223,48 @@ public class TreeBuilder {
     }
 
     private List<RecipeOption> visibleRecipes(ItemStack output, List<RecipeOption> alternatives) {
-        if (!hideLooping || alternatives.isEmpty()) return alternatives;
-        List<RecipeOption> visible = new ArrayList<>();
+        if (alternatives.isEmpty()) return alternatives;
+        List<RecipeOption> usable = new ArrayList<>();
         for (RecipeOption option : alternatives) {
+            if (!needsMissingCatalyst(option)) usable.add(option);
+        }
+        if (!hideLooping || usable.isEmpty()) return usable;
+        List<RecipeOption> visible = new ArrayList<>();
+        for (RecipeOption option : usable) {
             if (!hidesAsLoop(output, option)) visible.add(option);
         }
-        return visible.isEmpty() ? alternatives : visible;
+        return visible;
+    }
+
+    private boolean needsMissingCatalyst(RecipeOption option) {
+        for (Ingredient ingredient : option.inputs()) {
+            if (ingredient == null || ingredient.isEmpty()) continue;
+            ItemStack[] items = ingredient.getItems();
+            if (items.length == 0) continue;
+            boolean catalyst = true;
+            for (ItemStack item : items) {
+                if (!isCatalyst(item)) {
+                    catalyst = false;
+                    break;
+                }
+            }
+            if (!catalyst) continue;
+            boolean owned = false;
+            for (ItemStack item : items) {
+                if (availability.available(ItemKey.of(item)) > 0) {
+                    owned = true;
+                    break;
+                }
+            }
+            if (!owned) return true;
+        }
+        return false;
+    }
+
+    private static boolean isCatalyst(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return false;
+        ItemStack remainder = Services.PLATFORM.getCraftingRemainder(stack);
+        return remainder != null && !remainder.isEmpty() && remainder.getItem() == stack.getItem();
     }
 
     private boolean hidesAsLoop(ItemStack output, RecipeOption option) {
@@ -275,6 +317,14 @@ public class TreeBuilder {
         }
         for (ItemStack stack : items) {
             if (availability.available(ItemKey.of(stack)) > 0) return stack.copy();
+        }
+        for (Item pref : preferred) {
+            for (ItemStack stack : items) {
+                if (stack.getItem() == pref && emcLookup.obtainable(ItemKey.of(stack))) return stack.copy();
+            }
+        }
+        for (ItemStack stack : items) {
+            if (emcLookup.obtainable(ItemKey.of(stack))) return stack.copy();
         }
         for (Item pref : preferred) {
             for (ItemStack stack : items) {
