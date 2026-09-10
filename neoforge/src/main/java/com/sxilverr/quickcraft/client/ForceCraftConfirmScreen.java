@@ -1,5 +1,6 @@
 package com.sxilverr.quickcraft.client;
 
+import com.sxilverr.quickcraft.craft.CraftPlanner;
 import com.sxilverr.quickcraft.craft.CraftPreview;
 import com.sxilverr.quickcraft.crafting.ItemKey;
 import com.sxilverr.quickcraft.network.QuickCraftNetwork;
@@ -22,6 +23,7 @@ public class ForceCraftConfirmScreen extends Screen {
     private static final int FORCE_W = 150;
     private static final int FORCE_H = 24;
     private static final int MAX_ROWS = 7;
+    private static final int MAX_BLOCKER_LINES = 4;
     private static final int PANEL_MIN_W = 224;
     private static final String EMPTY_LINE = "Not enough materials to make any items";
 
@@ -51,7 +53,7 @@ public class ForceCraftConfirmScreen extends Screen {
     @Override
     protected void init() {
         forceX = this.width / 2 - FORCE_W / 2;
-        forceY = this.height / 2 - 34;
+        forceY = this.height / 2 - 34 + blockerLines() * 10;
 
         addRenderableWidget(Button.builder(Component.literal("Force Craft"), b -> forceCraft())
                 .bounds(forceX, forceY, FORCE_W, FORCE_H).build());
@@ -72,6 +74,7 @@ public class ForceCraftConfirmScreen extends Screen {
         g.drawCenteredString(this.font, sub, cx, this.height / 2 - 62, 0xFFC0C0C0);
         g.drawCenteredString(this.font, "Force Craft makes as many items as your materials allow.",
                 cx, this.height / 2 - 50, 0xFF909090);
+        renderBlockers(g, cx);
 
         for (net.minecraft.client.gui.components.Renderable renderable : this.renderables) {
             renderable.render(g, mouseX, mouseY, partialTick);
@@ -80,6 +83,41 @@ public class ForceCraftConfirmScreen extends Screen {
         if (overForceButton(mouseX, mouseY)) {
             renderAcquire(g, cx);
         }
+    }
+
+    private int blockerLines() {
+        int n = preview.blockers().size();
+        return n == 0 ? 0 : Math.min(n, MAX_BLOCKER_LINES) + (n > MAX_BLOCKER_LINES ? 1 : 0);
+    }
+
+    private void renderBlockers(GuiGraphics g, int cx) {
+        List<CraftPlanner.Blocker> list = preview.blockers();
+        if (list.isEmpty()) return;
+        int y = this.height / 2 - 38;
+        int shown = Math.min(list.size(), MAX_BLOCKER_LINES);
+        for (int i = 0; i < shown; i++) {
+            CraftPlanner.Blocker blocker = list.get(i);
+            String line = "Missing " + blocker.missing() + "x " + trim(blocker.key().toStack(1).getHoverName().getString(), 28)
+                    + reasonLabel(blocker.reason());
+            g.drawCenteredString(this.font, line, cx, y, 0xFFFF5555);
+            y += 10;
+        }
+        if (list.size() > shown) {
+            g.drawCenteredString(this.font, "… +" + (list.size() - shown) + " more", cx, y, 0xFF909090);
+        }
+    }
+
+    public static String reasonLabel(CraftPlanner.Reason reason) {
+        return switch (reason) {
+            case NOT_LEARNED -> " (not learned)";
+            case NOT_ENOUGH_EMC -> " (not enough EMC)";
+            case CATALYST -> " (catalyst)";
+            case STATION -> " (needs a station)";
+            case TREE_LIMIT -> " (tree limit)";
+            case LOOP -> " (loop)";
+            case MANUAL -> " (supplied by you)";
+            default -> "";
+        };
     }
 
     private boolean overForceButton(int mouseX, int mouseY) {

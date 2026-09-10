@@ -1,6 +1,7 @@
 package com.sxilverr.quickcraft.network;
 
 import com.sxilverr.quickcraft.forge.craft.CraftService;
+import com.sxilverr.quickcraft.craft.CraftPlanner;
 import com.sxilverr.quickcraft.craft.CraftSummary;
 import com.sxilverr.quickcraft.crafting.ItemKey;
 import net.minecraft.ChatFormatting;
@@ -105,15 +106,48 @@ public class CraftRequestPacket {
         }
         if (summary.partial()) {
             MutableComponent msg = Component.literal("Quick Craft: crafted " + summary.crafted() + "/" + requestedLabel(summary.requested()) + " ")
-                    .append(name).append(Component.literal(" - ran out of materials")).withStyle(ChatFormatting.YELLOW);
-            return appendPlacements(msg, summary);
+                    .append(name).append(Component.literal(" - ran out of materials" + limitHint(summary))).withStyle(ChatFormatting.YELLOW);
+            return appendBlockers(appendPlacements(msg, summary), summary);
         }
         if (summary.missingStation() != null) {
             return Component.literal("Quick Craft: needs a " + summary.missingStation() + " nearby to craft ")
                     .append(name).withStyle(ChatFormatting.RED);
         }
-        return Component.literal("Quick Craft: not enough materials to craft ")
-                .append(name).withStyle(ChatFormatting.RED);
+        MutableComponent msg = Component.literal("Quick Craft: not enough materials to craft ")
+                .append(name).append(Component.literal(limitHint(summary))).withStyle(ChatFormatting.RED);
+        return appendBlockers(msg, summary);
+    }
+
+    private static MutableComponent appendBlockers(MutableComponent msg, CraftSummary summary) {
+        List<CraftPlanner.Blocker> blockers = summary.blockers();
+        if (blockers.isEmpty()) return msg;
+        MutableComponent tail = Component.literal(" - missing: ");
+        int shown = Math.min(3, blockers.size());
+        for (int i = 0; i < shown; i++) {
+            CraftPlanner.Blocker blocker = blockers.get(i);
+            if (i > 0) tail.append(Component.literal(", "));
+            tail.append(Component.literal(blocker.missing() + "x ")).append(blocker.key().toStack(1).getHoverName())
+                    .append(Component.literal(reasonLabel(blocker.reason())));
+        }
+        if (blockers.size() > shown) tail.append(Component.literal(", +" + (blockers.size() - shown) + " more"));
+        return msg.append(tail.withStyle(ChatFormatting.GRAY));
+    }
+
+    private static String reasonLabel(CraftPlanner.Reason reason) {
+        return switch (reason) {
+            case NOT_LEARNED -> " (not learned)";
+            case NOT_ENOUGH_EMC -> " (not enough EMC)";
+            case CATALYST -> " (catalyst)";
+            case STATION -> " (needs a station)";
+            case TREE_LIMIT -> " (tree limit)";
+            case LOOP -> " (loop)";
+            case MANUAL -> " (supplied by you)";
+            default -> "";
+        };
+    }
+
+    private static String limitHint(CraftSummary summary) {
+        return summary.treeLimited() ? " (recipe tree hit the maxTreeNodes limit, raise it in the config)" : "";
     }
 
     private static MutableComponent appendPlacements(MutableComponent msg, CraftSummary summary) {

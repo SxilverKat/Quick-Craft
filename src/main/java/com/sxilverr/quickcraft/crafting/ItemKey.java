@@ -101,6 +101,18 @@ public final class ItemKey {
         return item;
     }
 
+    public boolean isLoose() {
+        return data == null;
+    }
+
+    public ItemKey loose() {
+        return data == null ? this : new ItemKey(item, null);
+    }
+
+    public boolean sameItem(ItemKey other) {
+        return other != null && item == other.item;
+    }
+
     public ItemStack toStack(int count) {
         ItemStack stack = new ItemStack(item, count);
         if (data == null) return stack;

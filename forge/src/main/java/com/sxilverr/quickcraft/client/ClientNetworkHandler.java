@@ -1,5 +1,6 @@
 package com.sxilverr.quickcraft.client;
 
+import com.sxilverr.quickcraft.craft.CraftPlanner;
 import com.sxilverr.quickcraft.craft.CraftPreview;
 import com.sxilverr.quickcraft.crafting.ItemKey;
 import com.sxilverr.quickcraft.crafting.Stations;
@@ -21,9 +22,10 @@ public final class ClientNetworkHandler {
         }
     }
 
-    public static void onCraftPreview(int craftable, int requested, List<CraftPreview.Gain> gained) {
+    public static void onCraftPreview(int craftable, int requested, List<CraftPreview.Gain> gained,
+                                      List<CraftPlanner.Blocker> blockers) {
         if (Minecraft.getInstance().screen instanceof QuickCraftScreen screen) {
-            screen.onCraftPreviewResult(new CraftPreview.Result(craftable, requested, gained));
+            screen.onCraftPreviewResult(new CraftPreview.Result(craftable, requested, gained, blockers));
         }
     }
 }

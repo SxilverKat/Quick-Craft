@@ -17,6 +17,10 @@ public class CraftNode {
     public final List<CraftNode> children = new ArrayList<>();
     public boolean cyclic;
     public boolean owned;
+    public boolean catalyst;
+    public boolean truncated;
+    public CraftNode reference;
+    public boolean emcBuy;
     public int freeStock;
     public boolean fitsStation = true;
     public boolean craftReachable = true;

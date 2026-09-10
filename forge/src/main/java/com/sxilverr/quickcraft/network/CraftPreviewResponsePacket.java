@@ -1,6 +1,7 @@
 package com.sxilverr.quickcraft.network;
 
 import com.sxilverr.quickcraft.client.ClientNetworkHandler;
+import com.sxilverr.quickcraft.craft.CraftPlanner;
 import com.sxilverr.quickcraft.craft.CraftPreview;
 import com.sxilverr.quickcraft.crafting.ItemKey;
 import net.minecraft.network.FriendlyByteBuf;
@@ -19,11 +20,14 @@ public class CraftPreviewResponsePacket {
     private final int craftable;
     private final int requested;
     private final List<CraftPreview.Gain> gained;
+    private final List<CraftPlanner.Blocker> blockers;
 
-    public CraftPreviewResponsePacket(int craftable, int requested, List<CraftPreview.Gain> gained) {
+    public CraftPreviewResponsePacket(int craftable, int requested, List<CraftPreview.Gain> gained,
+                                      List<CraftPlanner.Blocker> blockers) {
         this.craftable = craftable;
         this.requested = requested;
         this.gained = gained;
+        this.blockers = blockers;
     }
 
     public static void encode(CraftPreviewResponsePacket msg, FriendlyByteBuf buf) {
@@ -33,6 +37,12 @@ public class CraftPreviewResponsePacket {
         for (CraftPreview.Gain gain : msg.gained) {
             buf.writeItem(gain.key().toStack(1));
             buf.writeVarInt(gain.count());
+        }
+        buf.writeVarInt(msg.blockers.size());
+        for (CraftPlanner.Blocker blocker : msg.blockers) {
+            buf.writeItem(blocker.key().toStack(1));
+            buf.writeVarInt(blocker.missing());
+            buf.writeVarInt(blocker.reason().ordinal());
         }
     }
 
@@ -46,13 +56,23 @@ public class CraftPreviewResponsePacket {
             int amount = buf.readVarInt();
             if (!stack.isEmpty()) gained.add(new CraftPreview.Gain(ItemKey.of(stack), amount));
         }
-        return new CraftPreviewResponsePacket(craftable, requested, gained);
+        int blockerCount = Math.min(MAX_ENTRIES, buf.readVarInt());
+        List<CraftPlanner.Blocker> blockers = new ArrayList<>();
+        CraftPlanner.Reason[] reasons = CraftPlanner.Reason.values();
+        for (int i = 0; i < blockerCount; i++) {
+            ItemStack stack = buf.readItem();
+            int missing = buf.readVarInt();
+            int reason = buf.readVarInt();
+            if (stack.isEmpty() || reason < 0 || reason >= reasons.length) continue;
+            blockers.add(new CraftPlanner.Blocker(ItemKey.of(stack), missing, reasons[reason]));
+        }
+        return new CraftPreviewResponsePacket(craftable, requested, gained, blockers);
     }
 
     public static void handle(CraftPreviewResponsePacket msg, Supplier<NetworkEvent.Context> ctx) {
         NetworkEvent.Context context = ctx.get();
         context.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                () -> () -> ClientNetworkHandler.onCraftPreview(msg.craftable, msg.requested, msg.gained)));
+                () -> () -> ClientNetworkHandler.onCraftPreview(msg.craftable, msg.requested, msg.gained, msg.blockers)));
         context.setPacketHandled(true);
     }
 }

@@ -1,6 +1,7 @@
 package com.sxilverr.quickcraft.neoforge.integration.projecte;
 
 import com.sxilverr.quickcraft.craft.EmcBank;
+import com.sxilverr.quickcraft.craft.EmcSource;
 import com.sxilverr.quickcraft.crafting.ItemKey;
 import com.sxilverr.quickcraft.neoforge.QuickCraftConfig;
 import moze_intel.projecte.api.ItemInfo;
@@ -20,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public final class EmcSession {
+public final class EmcSession implements EmcSource {
     private final IKnowledgeProvider provider;
     private final boolean fullKnowledge;
     private final Player player;
