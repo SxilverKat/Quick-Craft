@@ -20,6 +20,10 @@ public class QuickCraftConfig {
     private static final List<String> DEFAULT_DEPOSIT_BLACKLIST = List.of(
             "ae2:drive", "ae2:controller", "ae2:charger", "ae2:wireless_access_point",
             "refinedstorage:disk_drive", "toms_storage:ts.inventory_connector",
+            "projecte:condenser_mk1", "projecte:condenser_mk2",
+            "projecte:relay_mk1", "projecte:relay_mk2", "projecte:relay_mk3",
+            "projecte:collector_mk1", "projecte:collector_mk2", "projecte:collector_mk3",
+            "projecte:dm_pedestal", "projecte:dm_furnace", "projecte:rm_furnace",
             "@chargers");
 
     private static final List<String> DEFAULT_EXTRA_SOURCES = List.of();
@@ -100,6 +104,11 @@ public class QuickCraftConfig {
             .comment("When ProjectE is installed and a transmutation table is nearby or a transmutation tablet is in your inventory,",
                     "use your EMC to supply missing learned materials and learn the items you craft. Requires ProjectE.")
             .define("useProjectEEmc", true);
+
+    private static final ForgeConfigSpec.BooleanValue USE_KLEIN_STAR_EMC = BUILDER
+            .comment("Klein Stars carried in your inventory add their stored EMC to what Quick Craft can spend.",
+                    "Your own EMC is spent first, then the stars are drained. Requires ProjectE.")
+            .define("useKleinStarEmc", true);
 
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
@@ -187,6 +196,10 @@ public class QuickCraftConfig {
 
     public static boolean useProjectEEmc() {
         return USE_PROJECT_E_EMC.get();
+    }
+
+    public static boolean useKleinStarEmc() {
+        return USE_KLEIN_STAR_EMC.get();
     }
 
     public static int shiftCraftAmount() {

@@ -45,6 +45,7 @@ repositories {
     maven("https://modmaven.dev")
     maven("https://cursemaven.com") { name = "CurseMaven" }
     strictMaven("https://api.modrinth.com/maven", "Modrinth", "maven.modrinth")
+    strictMaven("https://maven.theillusivec4.top", "Curios", "top.theillusivec4.curios")
 }
 
 dependencies {
@@ -60,6 +61,7 @@ dependencies {
     modCompileOnly("curse.maven:just-enough-resources-240630:5057220")
 
     modCompileOnly("curse.maven:projecte-226410:4901949")
+    modCompileOnly("top.theillusivec4.curios:curios-forge:5.14.1+1.20.1")
 
     modCompileOnly("curse.maven:applied-energistics-2-223794:7148487")
     modCompileOnly("curse.maven:refined-storage-243076:4844585")

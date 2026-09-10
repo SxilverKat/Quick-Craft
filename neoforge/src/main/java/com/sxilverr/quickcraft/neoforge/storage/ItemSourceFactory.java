@@ -5,6 +5,7 @@ import com.sxilverr.quickcraft.storage.ItemSource;
 import com.sxilverr.quickcraft.storage.LabeledSource;
 import com.sxilverr.quickcraft.DepositBlacklist;
 import com.sxilverr.quickcraft.neoforge.QuickCraftConfig;
+import com.sxilverr.quickcraft.neoforge.integration.projecte.AlchBagSource;
 import com.sxilverr.quickcraft.platform.Services;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -53,6 +54,7 @@ public final class ItemSourceFactory {
         boolean ae2 = Services.PLATFORM.isModLoaded("ae2");
         boolean refinedStorage = Services.PLATFORM.isModLoaded("refinedstorage");
         boolean backpacks = Services.PLATFORM.isModLoaded("sophisticatedbackpacks");
+        boolean projecte = Services.PLATFORM.isModLoaded("projecte");
         Set<Object> seenNetworks = (ae2 || refinedStorage)
                 ? Collections.newSetFromMap(new IdentityHashMap<>()) : null;
 
@@ -62,6 +64,7 @@ public final class ItemSourceFactory {
         }
         if (ae2) Ae2ItemSource.addWireless(player, seenNetworks, out);
         if (backpacks) SophisticatedBackpackSource.addBackpacks(player, out);
+        if (projecte) AlchBagSource.addBags(player, out);
         addExtraItemSources(player, extraSources, blacklist, out);
 
         return out;

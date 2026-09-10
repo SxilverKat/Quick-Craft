@@ -271,7 +271,7 @@ public final class CraftService {
             ItemKey key = entry.getKey();
             int amount = entry.getValue();
             if (depositToEmc) {
-                long value = emc.value(key.toStack(1));
+                long value = emc.sellValue(key.toStack(1));
                 if (value > 0L) {
                     bank.gain(BigInteger.valueOf(value).multiply(BigInteger.valueOf(amount)));
                     deposit.toEmc(amount, key.equals(targetKey));

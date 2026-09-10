@@ -5,6 +5,7 @@ import com.sxilverr.quickcraft.storage.ItemSource;
 import com.sxilverr.quickcraft.storage.LabeledSource;
 import com.sxilverr.quickcraft.DepositBlacklist;
 import com.sxilverr.quickcraft.forge.QuickCraftConfig;
+import com.sxilverr.quickcraft.forge.integration.projecte.AlchBagSource;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -51,6 +52,7 @@ public final class ItemSourceFactory {
         boolean refinedStorage = ModList.get().isLoaded("refinedstorage");
         boolean toms = ModList.get().isLoaded("toms_storage");
         boolean backpacks = ModList.get().isLoaded("sophisticatedbackpacks");
+        boolean projecte = ModList.get().isLoaded("projecte");
         Set<Object> seenNetworks = (ae2 || refinedStorage) ? Collections.newSetFromMap(new IdentityHashMap<>()) : null;
         Set<Object> tomsSeen = toms ? Collections.newSetFromMap(new IdentityHashMap<>()) : null;
 
@@ -65,6 +67,7 @@ public final class ItemSourceFactory {
         if (refinedStorage) RsItemSource.addWireless(player, seenNetworks, out);
         if (toms) TomsStorageItemSource.addWireless(player, tomsSeen, out);
         if (backpacks) SophisticatedBackpackSource.addBackpacks(player, out);
+        if (projecte) AlchBagSource.addBags(player, out);
         addExtraItemSources(player, extraSources, blacklist, out);
 
         return out;

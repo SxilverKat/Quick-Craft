@@ -3,20 +3,31 @@ package com.sxilverr.quickcraft.neoforge.integration.projecte;
 import com.sxilverr.quickcraft.platform.Services;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public final class ProjectEIntegration {
     public static final String MODID = "projecte";
+    private static final String CURIOS_MODID = "curios";
     private static final ResourceLocation TABLE_ID = ResourceLocation.fromNamespaceAndPath(MODID, "transmutation_table");
-    private static final ResourceLocation TABLET_ID = ResourceLocation.fromNamespaceAndPath(MODID, "transmutation_tablet");
+    private static final List<ResourceLocation> TABLET_IDS = List.of(
+            ResourceLocation.fromNamespaceAndPath(MODID, "transmutation_tablet"),
+            ResourceLocation.fromNamespaceAndPath("projectexpansion", "arcane_transmutation_tablet"));
+    private static final TagKey<Item> TABLET_TAG = TagKey.create(Registries.ITEM, ResourceLocation.fromNamespaceAndPath("projecte", "transmutation_tablets"));
 
     private static Boolean loaded;
+    private static Boolean curios;
 
     private ProjectEIntegration() {
     }
@@ -26,18 +37,42 @@ public final class ProjectEIntegration {
         return loaded;
     }
 
+    private static boolean curiosLoaded() {
+        if (curios == null) curios = Services.PLATFORM.isModLoaded(CURIOS_MODID);
+        return curios;
+    }
+
     public static Block tableBlock() {
         return BuiltInRegistries.BLOCK.getOptional(TABLE_ID).orElse(null);
     }
 
+    private static List<Item> tablets() {
+        List<Item> out = new ArrayList<>();
+        for (ResourceLocation id : TABLET_IDS) {
+            Item item = BuiltInRegistries.ITEM.getOptional(id).orElse(null);
+            if (item != null && item != Items.AIR) out.add(item);
+        }
+        return out;
+    }
+
+    private static boolean isTablet(ItemStack stack, List<Item> tablets) {
+        if (stack.isEmpty()) return false;
+        if (stack.is(TABLET_TAG)) return true;
+        for (Item tablet : tablets) {
+            if (stack.is(tablet)) return true;
+        }
+        return false;
+    }
+
     public static ItemStack findTablet(Player player) {
-        Item tablet = BuiltInRegistries.ITEM.getOptional(TABLET_ID).orElse(null);
-        if (tablet == null || player == null) return ItemStack.EMPTY;
+        if (player == null) return ItemStack.EMPTY;
+        List<Item> tablets = tablets();
         Inventory inv = player.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
             ItemStack stack = inv.getItem(i);
-            if (stack.is(tablet)) return stack;
+            if (isTablet(stack, tablets)) return stack;
         }
+        if (curiosLoaded()) return CuriosTablet.find(player, stack -> isTablet(stack, tablets));
         return ItemStack.EMPTY;
     }
 
