@@ -1,5 +1,7 @@
 package com.sxilverr.quickcraft.craft;
 
+import net.minecraft.item.ItemStack;
+
 import java.util.Collections;
 import java.util.List;
 
@@ -28,30 +30,32 @@ public final class CraftSummary {
     private final List<Placement> placements;
     private final int dropped;
     private final int byproducts;
-    private final boolean aborted;
+    private final ItemStack blocked;
+    private final int blockedCount;
 
     public CraftSummary(int crafted, int requested, String missingStation,
-                        List<Placement> placements, int dropped, int byproducts, boolean aborted) {
+                        List<Placement> placements, int dropped, int byproducts, ItemStack blocked, int blockedCount) {
         this.crafted = crafted;
         this.requested = requested;
         this.missingStation = missingStation;
         this.placements = placements;
         this.dropped = dropped;
         this.byproducts = byproducts;
-        this.aborted = aborted;
+        this.blocked = blocked == null ? ItemStack.EMPTY : blocked;
+        this.blockedCount = blockedCount;
     }
 
     public CraftSummary(int crafted, int requested, String missingStation,
                         List<Placement> placements, int dropped, int byproducts) {
-        this(crafted, requested, missingStation, placements, dropped, byproducts, false);
+        this(crafted, requested, missingStation, placements, dropped, byproducts, ItemStack.EMPTY, 0);
     }
 
     public static CraftSummary empty() {
         return new CraftSummary(0, 0, null, Collections.<Placement>emptyList(), 0, 0);
     }
 
-    public static CraftSummary aborted(int requested) {
-        return new CraftSummary(0, requested, null, Collections.<Placement>emptyList(), 0, 0, true);
+    public static CraftSummary aborted(int requested, ItemStack blocked, int blockedCount) {
+        return new CraftSummary(0, requested, null, Collections.<Placement>emptyList(), 0, 0, blocked, blockedCount);
     }
 
     public int crafted() {
@@ -78,8 +82,16 @@ public final class CraftSummary {
         return byproducts;
     }
 
+    public ItemStack blocked() {
+        return blocked;
+    }
+
+    public int blockedCount() {
+        return blockedCount;
+    }
+
     public boolean aborted() {
-        return aborted;
+        return !blocked.isEmpty();
     }
 
     public boolean full() {

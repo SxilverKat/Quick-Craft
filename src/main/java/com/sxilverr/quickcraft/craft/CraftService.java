@@ -42,6 +42,19 @@ import java.util.Set;
 public final class CraftService {
     private static final int MAX_QUANTITY = 1000000;
     private static final int INVENTORY_SLOTS = 36;
+    private static final int MAX_COMMIT_ATTEMPTS = 8;
+
+    private static final class Shortfall {
+        private final ItemKey key;
+        private final int wanted;
+        private final int got;
+
+        private Shortfall(ItemKey key, int wanted, int got) {
+            this.key = key;
+            this.wanted = wanted;
+            this.got = got;
+        }
+    }
 
     private CraftService() {
     }
@@ -69,47 +82,40 @@ public final class CraftService {
         TreeBuilder builder = new TreeBuilder(resolver, QuickCraftConfig.preferredItems(),
                 QuickCraftConfig.maxTreeDepth(), QuickCraftConfig.maxTreeNodes());
 
-        ItemSource source = extractionSource(labeled);
-        List<ItemStack> snapshot = source.snapshot();
-        Availability availability = Availability.Factory.of(ownedCounts(snapshot));
+        CompositeItemSource source = extractionSource(labeled);
+        VirtualPool initial = poolFrom(source.snapshot());
         Stations stations = StationScan.detect(player.world, player);
 
         EmcSession emc = openEmcSession(player);
         builder.setEmcLookup(lookupFor(emc));
 
-        CraftNode root = builder.build(target, qty, overrides, ingredientChoices, availability, stations,
-                QuickCraftConfig.collapseOwnedItems(), QuickCraftConfig.hideLoopingRecipes());
-        Station missing = CraftTrees.missingStation(root);
-
         ItemKey targetKey = ItemKey.of(target);
-        VirtualPool initial = poolFrom(snapshot);
-        VirtualPool working = initial.copy();
+        Shortfall shortfall = null;
+        for (int attempt = 0; attempt < MAX_COMMIT_ATTEMPTS; attempt++) {
+            Availability availability = Availability.Factory.of(new HashMap<ItemKey, Integer>(initial.counts()));
+            CraftNode root = builder.build(target, qty, overrides, ingredientChoices, availability, stations,
+                    QuickCraftConfig.collapseOwnedItems(), QuickCraftConfig.hideLoopingRecipes());
 
-        EmcBank bank = null;
-        if (emc != null) {
-            bank = emc.bank(collectKeys(root, new HashSet<ItemKey>()));
+            EmcBank bank = emc == null ? null : emc.bank(collectKeys(root, new HashSet<ItemKey>()));
+            VirtualPool working = initial.copy();
             working.setEmc(bank);
-        }
+            CraftExecutor.simulate(root, working);
+            buyTarget(bank, initial, working, targetKey, qty);
 
-        CraftExecutor.simulate(root, working);
-
-        if (bank != null) {
-            int made = Math.max(0, working.count(targetKey) - initial.count(targetKey));
-            if (made < qty && bank.supplies(targetKey)) {
-                int buy = Math.min(qty - made, bank.affordable(targetKey));
-                if (buy > 0 && bank.buy(targetKey, buy)) working.produce(targetKey, buy);
+            shortfall = commit(source, deposit, initial, working, targetKey, emc, bank, player, destinationId);
+            if (shortfall != null) {
+                initial.limit(shortfall.key, shortfall.got);
+                continue;
             }
-        }
+            if (emc != null) emc.apply(bank, working.producedKeys());
 
-        if (!commit(source, deposit, initial, working, targetKey, emc, bank, player, destinationId)) {
-            return CraftSummary.aborted(qty);
+            int crafted = Math.max(0, working.count(targetKey) - initial.count(targetKey));
+            if (crafted > 0) playCraftSound(player);
+            Station missing = CraftTrees.missingStation(root);
+            return new CraftSummary(Math.min(crafted, qty), qty, missing == null ? null : missing.displayName(),
+                    deposit.placements(), deposit.dropped(), deposit.byproducts());
         }
-        if (emc != null) emc.apply(bank, working.producedKeys());
-
-        int crafted = Math.max(0, working.count(targetKey) - initial.count(targetKey));
-        if (crafted > 0) playCraftSound(player);
-        return new CraftSummary(Math.min(crafted, qty), qty, missing == null ? null : missing.displayName(),
-                deposit.placements(), deposit.dropped(), deposit.byproducts());
+        return CraftSummary.aborted(qty, shortfall.key.toStack(1), shortfall.wanted);
     }
 
     public static CraftPreview.Result preview(EntityPlayerMP player, ItemStack target, int quantity,
@@ -173,6 +179,14 @@ public final class CraftService {
         return out;
     }
 
+    private static void buyTarget(EmcBank bank, VirtualPool initial, VirtualPool working, ItemKey targetKey, int qty) {
+        if (bank == null || !bank.supplies(targetKey)) return;
+        int made = Math.max(0, working.count(targetKey) - initial.count(targetKey));
+        if (made >= qty) return;
+        int buy = Math.min(qty - made, bank.affordable(targetKey));
+        if (buy > 0 && bank.buy(targetKey, buy)) working.produce(targetKey, buy);
+    }
+
     public static final class AvailabilitySnapshot {
         private final Map<ItemKey, Integer> counts;
         private final Map<ItemKey, ItemStack> sources;
@@ -230,7 +244,7 @@ public final class CraftService {
         return out;
     }
 
-    private static ItemSource extractionSource(List<LabeledSource> labeled) {
+    private static CompositeItemSource extractionSource(List<LabeledSource> labeled) {
         List<ItemSource> sources = new ArrayList<ItemSource>(labeled.size());
         for (LabeledSource l : labeled) sources.add(l.source());
         return new CompositeItemSource(sources);
@@ -252,9 +266,9 @@ public final class CraftService {
         return pool;
     }
 
-    private static boolean commit(ItemSource source, Deposit deposit, VirtualPool initial, VirtualPool working,
-                                  ItemKey targetKey, EmcSession emc, EmcBank bank, EntityPlayerMP player,
-                                  String destinationId) {
+    private static Shortfall commit(CompositeItemSource source, Deposit deposit, VirtualPool initial, VirtualPool working,
+                                    ItemKey targetKey, EmcSession emc, EmcBank bank, EntityPlayerMP player,
+                                    String destinationId) {
         boolean depositToEmc = emc != null && bank != null && EmcDeposit.isEmc(destinationId);
 
         Map<ItemKey, Integer> consumed = new LinkedHashMap<ItemKey, Integer>();
@@ -268,18 +282,29 @@ public final class CraftService {
         }
 
         for (Map.Entry<ItemKey, Integer> entry : consumed.entrySet()) {
-            if (source.extractMatching(entry.getKey().toStack(1), entry.getValue(), true) < entry.getValue()) {
-                return false;
-            }
+            int can = source.extractMatching(entry.getKey().toStack(1), entry.getValue(), true);
+            if (can < entry.getValue()) return new Shortfall(entry.getKey(), entry.getValue(), can);
         }
 
-        Map<ItemKey, Integer> taken = new LinkedHashMap<ItemKey, Integer>();
+        Map<ItemSource, List<ItemStack>> taken = new LinkedHashMap<ItemSource, List<ItemStack>>();
         for (Map.Entry<ItemKey, Integer> entry : consumed.entrySet()) {
-            int got = source.extractMatching(entry.getKey().toStack(1), entry.getValue(), false);
-            if (got > 0) taken.put(entry.getKey(), got);
-            if (got < entry.getValue()) {
+            ItemStack rep = entry.getKey().toStack(1);
+            int remaining = entry.getValue();
+            for (ItemSource part : source.sources()) {
+                if (remaining <= 0) break;
+                List<ItemStack> pulled = part.pull(rep, remaining);
+                if (pulled.isEmpty()) continue;
+                List<ItemStack> bucket = taken.get(part);
+                if (bucket == null) {
+                    bucket = new ArrayList<ItemStack>();
+                    taken.put(part, bucket);
+                }
+                bucket.addAll(pulled);
+                for (ItemStack stack : pulled) remaining -= stack.getCount();
+            }
+            if (remaining > 0) {
                 refund(source, taken, player);
-                return false;
+                return new Shortfall(entry.getKey(), entry.getValue(), Math.max(0, entry.getValue() - remaining));
             }
         }
 
@@ -287,7 +312,7 @@ public final class CraftService {
             ItemKey key = entry.getKey();
             int amount = entry.getValue();
             if (depositToEmc) {
-                long value = emc.value(key.toStack(1));
+                long value = emc.sellValue(key.toStack(1));
                 if (value > 0L) {
                     bank.gain(BigInteger.valueOf(value).multiply(BigInteger.valueOf(amount)));
                     deposit.toEmc(amount, key.equals(targetKey));
@@ -296,19 +321,23 @@ public final class CraftService {
             }
             deposit.put(key, amount, key.equals(targetKey));
         }
-        return true;
+        return null;
     }
 
-    private static void refund(ItemSource source, Map<ItemKey, Integer> taken, EntityPlayerMP player) {
-        for (Map.Entry<ItemKey, Integer> entry : taken.entrySet()) {
-            ItemKey key = entry.getKey();
-            int max = Math.max(1, key.toStack(1).getMaxStackSize());
-            int left = entry.getValue();
-            while (left > 0) {
-                int n = Math.min(left, max);
-                ItemStack remainder = source.insert(key.toStack(n), false);
-                if (!remainder.isEmpty()) player.dropItem(remainder, false);
-                left -= n;
+    private static void refund(ItemSource fallback, Map<ItemSource, List<ItemStack>> taken, EntityPlayerMP player) {
+        for (Map.Entry<ItemSource, List<ItemStack>> entry : taken.entrySet()) {
+            for (ItemStack stack : entry.getValue()) {
+                int max = Math.max(1, stack.getMaxStackSize());
+                int left = stack.getCount();
+                while (left > 0) {
+                    int n = Math.min(left, max);
+                    ItemStack chunk = stack.copy();
+                    chunk.setCount(n);
+                    ItemStack remainder = entry.getKey().insert(chunk, false);
+                    if (!remainder.isEmpty()) remainder = fallback.insert(remainder, false);
+                    if (!remainder.isEmpty()) player.dropItem(remainder, false);
+                    left -= n;
+                }
             }
         }
     }

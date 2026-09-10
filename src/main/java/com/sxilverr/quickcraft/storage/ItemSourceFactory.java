@@ -3,6 +3,8 @@ package com.sxilverr.quickcraft.storage;
 import com.sxilverr.quickcraft.DepositBlacklist;
 import com.sxilverr.quickcraft.QuickCraftConfig;
 import com.sxilverr.quickcraft.integration.ae2.Ae2ItemSource;
+import com.sxilverr.quickcraft.integration.projecte.AlchBagSource;
+import com.sxilverr.quickcraft.integration.projecte.ProjectESupport;
 import com.sxilverr.quickcraft.integration.ae2.Ae2Support;
 import com.sxilverr.quickcraft.integration.rs.RsItemSource;
 import com.sxilverr.quickcraft.integration.rs.RsSupport;
@@ -50,6 +52,7 @@ public final class ItemSourceFactory {
         if (scanRange > 0) {
             addNearbyContainers(player, scanRange, out, seenNetworks, blacklist, extraSources);
         }
+        if (ProjectESupport.available()) AlchBagSource.addBags(player, out);
         addInventoryItemSources(player, extraSources, blacklist, out);
 
         return out;

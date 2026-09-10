@@ -22,7 +22,12 @@ public final class QuickCraftConfig {
     private static final String[] DEFAULT_BLACKLIST = {
             "appliedenergistics2:drive", "appliedenergistics2:controller",
             "appliedenergistics2:charger", "appliedenergistics2:wireless_access_point",
-            "refinedstorage:disk_drive", "@chargers"};
+            "refinedstorage:disk_drive",
+            "projecte:condenser_mk1", "projecte:condenser_mk2",
+            "projecte:relay_mk1", "projecte:relay_mk2", "projecte:relay_mk3",
+            "projecte:collector_mk1", "projecte:collector_mk2", "projecte:collector_mk3",
+            "projecte:dm_pedestal", "projecte:dm_furnace", "projecte:rm_furnace",
+            "@chargers"};
     private static final String[] DEFAULT_EXTRA_SOURCES = {};
 
     private static Configuration config;
@@ -45,6 +50,7 @@ public final class QuickCraftConfig {
     private static boolean sizeTabToFit = true;
     private static String shiftCraftAmount = "64";
     private static boolean useProjectEEmc = true;
+    private static boolean useKleinStarEmc = true;
     private static boolean backpackSources = true;
 
     private static int colorAvailable = 0xFF55FF55;
@@ -132,6 +138,10 @@ public final class QuickCraftConfig {
         useProjectEEmc = config.getBoolean("useProjectEEmc", GENERAL, true,
                 "When ProjectE is installed and a transmutation table is nearby or a transmutation tablet is in your "
                         + "inventory, use your EMC to supply missing learned materials and learn the items you craft.");
+
+        useKleinStarEmc = config.getBoolean("useKleinStarEmc", GENERAL, true,
+                "Klein Stars carried in your inventory add their stored EMC to what Quick Craft can spend. "
+                        + "Your own EMC is spent first, then the stars are drained.");
 
         backpackSources = config.getBoolean("backpackSources", GENERAL, true,
                 "Pull from, and deposit into, any item in your inventory that holds its own inventory. "
@@ -251,6 +261,10 @@ public final class QuickCraftConfig {
 
     public static boolean useProjectEEmc() {
         return useProjectEEmc;
+    }
+
+    public static boolean useKleinStarEmc() {
+        return useKleinStarEmc;
     }
 
     public static boolean backpackSources() {

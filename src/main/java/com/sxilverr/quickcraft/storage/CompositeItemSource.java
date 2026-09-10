@@ -12,6 +12,10 @@ public class CompositeItemSource implements ItemSource {
         this.sources = sources;
     }
 
+    public List<ItemSource> sources() {
+        return sources;
+    }
+
     @Override
     public List<ItemStack> snapshot() {
         List<ItemStack> out = new ArrayList<ItemStack>();

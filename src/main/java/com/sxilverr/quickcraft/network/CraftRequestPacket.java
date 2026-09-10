@@ -98,8 +98,8 @@ public class CraftRequestPacket implements IMessage {
     private static ITextComponent feedback(CraftSummary summary, ItemStack target) {
         String name = target.getDisplayName();
         if (summary.aborted()) {
-            return colored("Quick Craft: storage changed while crafting, nothing was taken for " + name,
-                    TextFormatting.RED);
+            return colored("Quick Craft: could not pull " + summary.blockedCount() + "x "
+                    + summary.blocked().getDisplayName() + " out of storage, nothing was crafted", TextFormatting.RED);
         }
         if (summary.full()) {
             return withPlacements(colored("Quick Craft: crafted " + summary.crafted() + "x " + name,
