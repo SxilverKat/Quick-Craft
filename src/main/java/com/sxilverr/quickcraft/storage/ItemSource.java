@@ -2,6 +2,7 @@ package com.sxilverr.quickcraft.storage;
 
 import net.minecraft.world.item.ItemStack;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +22,28 @@ public interface ItemSource {
         }
         if (extracted < amount) extracted += extract(representative, amount - extracted, simulate);
         return extracted;
+    }
+
+    default List<ItemStack> pull(ItemStack representative, int amount) {
+        List<ItemStack> taken = new ArrayList<>();
+        int remaining = amount;
+        if (DamageMatch.tolerant(representative)) {
+            for (ItemStack variant : DamageMatch.variants(snapshot(), representative)) {
+                if (remaining <= 0) break;
+                remaining -= pullExact(variant, remaining, taken);
+            }
+        }
+        if (remaining > 0) pullExact(representative, remaining, taken);
+        return taken;
+    }
+
+    private int pullExact(ItemStack stack, int amount, List<ItemStack> taken) {
+        int got = extract(stack, amount, false);
+        if (got <= 0) return 0;
+        ItemStack copy = stack.copy();
+        copy.setCount(got);
+        taken.add(copy);
+        return got;
     }
 
     default ItemStack sourceIcon() {

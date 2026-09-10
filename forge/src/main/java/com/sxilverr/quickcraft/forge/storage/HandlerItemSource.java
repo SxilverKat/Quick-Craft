@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class HandlerItemSource implements ItemSource {
+    private static final int MAX_DRAIN_ROUNDS = 256;
+
     private final IItemHandler handler;
     private final ItemStack icon;
 
@@ -31,7 +33,8 @@ public class HandlerItemSource implements ItemSource {
         List<ItemStack> out = new ArrayList<>();
         for (int i = 0; i < handler.getSlots(); i++) {
             ItemStack stack = handler.getStackInSlot(i);
-            if (!stack.isEmpty()) out.add(stack.copy());
+            if (stack.isEmpty() || !extractable(i)) continue;
+            out.add(stack.copy());
         }
         return out;
     }
@@ -41,11 +44,40 @@ public class HandlerItemSource implements ItemSource {
         int remaining = amount;
         for (int i = 0; i < handler.getSlots() && remaining > 0; i++) {
             ItemStack stack = handler.getStackInSlot(i);
-            if (stack.isEmpty() || !ItemStack.isSameItemSameTags(stack, representative)) continue;
-            ItemStack taken = handler.extractItem(i, remaining, simulate);
-            remaining -= taken.getCount();
+            if (stack.isEmpty() || !same(stack, representative)) continue;
+            remaining -= simulate ? probe(i, stack, remaining) : drain(i, representative, remaining);
         }
         return amount - remaining;
+    }
+
+    private boolean extractable(int slot) {
+        try {
+            return !handler.extractItem(slot, 1, true).isEmpty();
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private int probe(int slot, ItemStack stack, int wanted) {
+        ItemStack sample = handler.extractItem(slot, wanted, true);
+        if (sample.isEmpty()) return 0;
+        return Math.min(wanted, Math.max(sample.getCount(), stack.getCount()));
+    }
+
+    private int drain(int slot, ItemStack representative, int wanted) {
+        int taken = 0;
+        for (int round = 0; round < MAX_DRAIN_ROUNDS && taken < wanted; round++) {
+            ItemStack stack = handler.getStackInSlot(slot);
+            if (stack.isEmpty() || !same(stack, representative)) break;
+            ItemStack got = handler.extractItem(slot, wanted - taken, false);
+            if (got.isEmpty()) break;
+            taken += got.getCount();
+        }
+        return taken;
+    }
+
+    private static boolean same(ItemStack a, ItemStack b) {
+        return ItemStack.isSameItemSameTags(a, b);
     }
 
     @Override

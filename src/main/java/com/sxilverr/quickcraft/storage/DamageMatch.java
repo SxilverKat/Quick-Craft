@@ -17,13 +17,10 @@ public final class DamageMatch {
 
     public static List<ItemStack> variants(List<ItemStack> stacks, ItemStack representative) {
         ItemKey key = ItemKey.of(representative);
-        int exact = representative.getDamageValue();
         List<ItemStack> out = new ArrayList<>();
         for (ItemStack stack : stacks) {
             if (stack.isEmpty() || stack.getItem() != representative.getItem()) continue;
-            int damage = stack.getDamageValue();
-            if (damage == exact || holds(out, damage)) continue;
-            if (!key.equals(ItemKey.of(stack))) continue;
+            if (!key.equals(ItemKey.of(stack)) || holds(out, stack)) continue;
             out.add(stack);
         }
         out.sort(Comparator.comparingInt(ItemStack::getDamageValue).reversed());
@@ -39,10 +36,18 @@ public final class DamageMatch {
         return sample;
     }
 
-    private static boolean holds(List<ItemStack> stacks, int damage) {
+    private static boolean holds(List<ItemStack> stacks, ItemStack candidate) {
         for (ItemStack stack : stacks) {
-            if (stack.getDamageValue() == damage) return true;
+            if (sameVariant(stack, candidate)) return true;
         }
         return false;
+    }
+
+    private static boolean sameVariant(ItemStack a, ItemStack b) {
+        //? if >=1.20.5 {
+        /*return ItemStack.isSameItemSameComponents(a, b);
+        *///?} else {
+        return ItemStack.isSameItemSameTags(a, b);
+        //?}
     }
 }

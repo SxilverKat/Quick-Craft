@@ -53,6 +53,12 @@ public class VirtualPool {
         return counts.getOrDefault(key, 0);
     }
 
+    public void limit(ItemKey key, int max) {
+        if (count(key) <= max) return;
+        if (max <= 0) counts.remove(key);
+        else counts.put(key, max);
+    }
+
     public boolean take(ItemKey key, int amount) {
         int have = counts.getOrDefault(key, 0);
         if (have >= amount) {

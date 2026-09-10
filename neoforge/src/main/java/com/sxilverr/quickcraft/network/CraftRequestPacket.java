@@ -100,8 +100,9 @@ public class CraftRequestPacket implements CustomPacketPayload {
     private static Component feedback(CraftSummary summary, ItemStack target) {
         Component name = target.getHoverName();
         if (summary.aborted()) {
-            return Component.literal("Quick Craft: storage changed while crafting, nothing was taken for ")
-                    .append(name).withStyle(ChatFormatting.RED);
+            return Component.literal("Quick Craft: could not pull " + summary.blockedCount() + "x ")
+                    .append(summary.blocked().getHoverName())
+                    .append(Component.literal(" out of storage, nothing was crafted")).withStyle(ChatFormatting.RED);
         }
         if (summary.full()) {
             MutableComponent msg = Component.literal("Quick Craft: crafted " + summary.crafted() + "x ")
