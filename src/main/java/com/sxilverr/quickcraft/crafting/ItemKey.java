@@ -79,6 +79,18 @@ public final class ItemKey {
         return meta;
     }
 
+    public boolean isLoose() {
+        return data == null;
+    }
+
+    public ItemKey loose() {
+        return data == null ? this : new ItemKey(item, meta, null);
+    }
+
+    public boolean sameItem(ItemKey other) {
+        return other != null && item == other.item && meta == other.meta;
+    }
+
     public ItemStack toStack(int count) {
         ItemStack stack = new ItemStack(item, count, meta);
         if (data != null) stack.setTagCompound(data.copy());

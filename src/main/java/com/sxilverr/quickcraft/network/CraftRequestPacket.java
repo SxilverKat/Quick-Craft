@@ -1,6 +1,7 @@
 package com.sxilverr.quickcraft.network;
 
 import com.sxilverr.quickcraft.craft.CraftService;
+import com.sxilverr.quickcraft.craft.CraftPlanner;
 import com.sxilverr.quickcraft.craft.CraftSummary;
 import com.sxilverr.quickcraft.crafting.ItemKey;
 import io.netty.buffer.ByteBuf;
@@ -107,20 +108,41 @@ public class CraftRequestPacket implements IMessage {
         }
         if (summary.partial()) {
             return withPlacements(colored("Quick Craft: crafted " + summary.crafted() + "/"
-                    + requestedLabel(summary.requested()) + " " + name + " - ran out of materials",
+                    + requestedLabel(summary.requested()) + " " + name + " - ran out of materials" + limitHint(summary)
+                    + blockerText(summary),
                     TextFormatting.YELLOW), summary);
         }
         if (summary.missingStation() != null) {
             return colored("Quick Craft: needs a " + summary.missingStation() + " nearby to craft " + name,
                     TextFormatting.RED);
         }
-        return colored("Quick Craft: not enough materials to craft " + name, TextFormatting.RED);
+        return colored("Quick Craft: not enough materials to craft " + name + limitHint(summary) + blockerText(summary),
+                TextFormatting.RED);
     }
 
     private static ITextComponent colored(String text, TextFormatting color) {
         TextComponentString component = new TextComponentString(text);
         component.getStyle().setColor(color);
         return component;
+    }
+
+    private static String blockerText(CraftSummary summary) {
+        List<CraftPlanner.Blocker> blockers = summary.blockers();
+        if (blockers.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder(" - missing: ");
+        int shown = Math.min(3, blockers.size());
+        for (int i = 0; i < shown; i++) {
+            CraftPlanner.Blocker blocker = blockers.get(i);
+            if (i > 0) sb.append(", ");
+            sb.append(blocker.missing()).append("x ").append(blocker.key().toStack(1).getDisplayName())
+                    .append(com.sxilverr.quickcraft.client.ForceCraftConfirmScreen.reasonLabel(blocker.reason()));
+        }
+        if (blockers.size() > shown) sb.append(", +").append(blockers.size() - shown).append(" more");
+        return sb.toString();
+    }
+
+    private static String limitHint(CraftSummary summary) {
+        return summary.treeLimited() ? " (recipe tree hit the maxTreeNodes limit, raise it in the config)" : "";
     }
 
     private static ITextComponent withPlacements(ITextComponent message, CraftSummary summary) {

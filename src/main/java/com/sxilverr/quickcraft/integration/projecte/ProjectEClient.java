@@ -1,66 +1,20 @@
 package com.sxilverr.quickcraft.integration.projecte;
 
-import com.sxilverr.quickcraft.craft.CraftExecutor;
-import com.sxilverr.quickcraft.craft.EmcBank;
-import com.sxilverr.quickcraft.craft.VirtualPool;
-import com.sxilverr.quickcraft.crafting.CraftNode;
-import com.sxilverr.quickcraft.crafting.ItemKey;
+import com.sxilverr.quickcraft.QuickCraftConfig;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.ItemStack;
 
 import java.math.BigInteger;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
 
 public final class ProjectEClient {
     private static final String[] SUFFIXES = {"", "K", "M", "B", "T", "P", "E"};
     private static final BigInteger THOUSAND = BigInteger.valueOf(1000);
-    private static final BigInteger UNLIMITED = BigInteger.ONE.shiftLeft(96);
 
     private ProjectEClient() {
     }
 
-    public static EmcPlan plan(EntityPlayer player, int range, CraftNode root, Map<ItemKey, Integer> have,
-                               ItemStack target, int quantity, Set<ItemKey> keys) {
-        EmcSession session = EmcSession.openClient(player, range);
-        if (session == null) return EmcPlan.none();
-        BigInteger owned = session.emc();
-        String total = format(owned);
-        if (root == null || target == null || target.isEmpty()) {
-            return new EmcPlan(true, Collections.<ItemKey, Integer>emptyMap(), null, total, true,
-                    Collections.<ItemKey, Integer>emptyMap());
-        }
-
-        Map<ItemKey, Integer> capacity = session.capacity(keys, ItemKey.of(target));
-
-        EmcBank affordableBank = session.bank(keys, owned);
-        spend(affordableBank, root, have, target, quantity);
-        Map<ItemKey, Integer> supplied = new HashMap<ItemKey, Integer>(affordableBank.purchased());
-
-        EmcBank fullBank = session.bank(keys, UNLIMITED);
-        spend(fullBank, root, have, target, quantity);
-        BigInteger required = fullBank.spentEmc();
-
-        boolean affordable = required.compareTo(owned) <= 0;
-        return new EmcPlan(true, supplied, required.signum() > 0 ? format(required) : null, total, affordable,
-                capacity);
-    }
-
-    private static void spend(EmcBank bank, CraftNode root, Map<ItemKey, Integer> have,
-                              ItemStack target, int quantity) {
-        VirtualPool pool = new VirtualPool();
-        for (Map.Entry<ItemKey, Integer> entry : have.entrySet()) pool.add(entry.getKey(), entry.getValue());
-        pool.setEmc(bank);
-        CraftExecutor.simulate(root, pool);
-        ItemKey targetKey = ItemKey.of(target);
-        Integer already = have.get(targetKey);
-        int made = Math.max(0, pool.count(targetKey) - (already == null ? 0 : already));
-        if (made < quantity && bank.supplies(targetKey)) {
-            int buy = Math.min(quantity - made, bank.affordable(targetKey));
-            if (buy > 0) bank.buy(targetKey, buy);
-        }
+    public static EmcSession session(EntityPlayer player, int range) {
+        if (player == null || !QuickCraftConfig.useProjectEEmc() || !ProjectESupport.available()) return null;
+        return EmcSession.openClient(player, range);
     }
 
     public static String format(BigInteger value) {

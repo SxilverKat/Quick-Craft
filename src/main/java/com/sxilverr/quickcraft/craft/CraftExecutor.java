@@ -22,6 +22,7 @@ public final class CraftExecutor {
     }
 
     private static int ensure(CraftNode node, int need, VirtualPool pool) {
+        if (node.reference != null) return ensure(node.reference, need, pool);
         if (!node.fitsStation || node.children.isEmpty()) return 0;
 
         ItemKey outputKey = ItemKey.of(node.output);
@@ -30,7 +31,7 @@ public final class CraftExecutor {
         while (pool.count(outputKey) < need) {
             int before = pool.count(outputKey);
             for (CraftNode child : node.children) {
-                done += ensure(child, child.requiredCount / crafts, pool);
+                done += ensure(child, perCraft(child, crafts), pool);
             }
             if (!canCraftOnce(node, pool, crafts)) break;
             doCraftOnce(node, pool, crafts, outputKey);
@@ -40,17 +41,21 @@ public final class CraftExecutor {
         return done;
     }
 
+    private static int perCraft(CraftNode child, int crafts) {
+        return child.catalyst ? child.requiredCount : child.requiredCount / crafts;
+    }
+
     private static boolean canCraftOnce(CraftNode node, VirtualPool pool, int crafts) {
         if (!pool.hasEmc()) {
             for (CraftNode child : node.children) {
-                if (pool.count(ItemKey.of(child.output)) < child.requiredCount / crafts) return false;
+                if (pool.count(ItemKey.of(child.output)) < perCraft(child, crafts)) return false;
             }
             return true;
         }
         BigInteger need = BigInteger.ZERO;
         for (CraftNode child : node.children) {
             ItemKey key = ItemKey.of(child.output);
-            int required = child.requiredCount / crafts;
+            int required = perCraft(child, crafts);
             int have = pool.count(key);
             if (have >= required) continue;
             long value = pool.emcValue(key);
@@ -62,8 +67,13 @@ public final class CraftExecutor {
 
     private static void doCraftOnce(CraftNode node, VirtualPool pool, int crafts, ItemKey outputKey) {
         for (CraftNode child : node.children) {
+            ItemKey key = ItemKey.of(child.output);
+            if (child.catalyst) {
+                if (pool.count(key) <= 0 && pool.take(key, child.requiredCount)) pool.add(key, child.requiredCount);
+                continue;
+            }
             int occ = child.requiredCount / crafts;
-            pool.take(ItemKey.of(child.output), occ);
+            pool.take(key, occ);
             ItemStack remainder = ForgeHooks.getContainerItem(child.output);
             if (remainder != null && !remainder.isEmpty()) {
                 pool.add(ItemKey.of(remainder), occ * remainder.getCount());

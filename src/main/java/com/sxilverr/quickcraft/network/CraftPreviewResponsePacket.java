@@ -1,5 +1,6 @@
 package com.sxilverr.quickcraft.network;
 
+import com.sxilverr.quickcraft.craft.CraftPlanner;
 import com.sxilverr.quickcraft.craft.CraftPreview;
 import com.sxilverr.quickcraft.crafting.ItemKey;
 import io.netty.buffer.ByteBuf;
@@ -19,14 +20,17 @@ public class CraftPreviewResponsePacket implements IMessage {
     int craftable;
     int requested;
     List<CraftPreview.Gain> gained = new ArrayList<CraftPreview.Gain>();
+    List<CraftPlanner.Blocker> blockers = new ArrayList<CraftPlanner.Blocker>();
 
     public CraftPreviewResponsePacket() {
     }
 
-    public CraftPreviewResponsePacket(int craftable, int requested, List<CraftPreview.Gain> gained) {
+    public CraftPreviewResponsePacket(int craftable, int requested, List<CraftPreview.Gain> gained,
+                                      List<CraftPlanner.Blocker> blockers) {
         this.craftable = craftable;
         this.requested = requested;
         this.gained = gained;
+        this.blockers = blockers;
     }
 
     @Override
@@ -37,6 +41,12 @@ public class CraftPreviewResponsePacket implements IMessage {
         for (CraftPreview.Gain gain : gained) {
             Buf.writeStack(buf, gain.key().toStack(1));
             buf.writeInt(gain.count());
+        }
+        buf.writeInt(blockers.size());
+        for (CraftPlanner.Blocker blocker : blockers) {
+            Buf.writeStack(buf, blocker.key().toStack(1));
+            buf.writeInt(blocker.missing());
+            buf.writeInt(blocker.reason().ordinal());
         }
     }
 
@@ -51,6 +61,16 @@ public class CraftPreviewResponsePacket implements IMessage {
             int amount = buf.readInt();
             if (!stack.isEmpty()) gained.add(new CraftPreview.Gain(ItemKey.of(stack), amount));
         }
+        int blockerCount = Math.min(MAX_ENTRIES, buf.readInt());
+        blockers = new ArrayList<CraftPlanner.Blocker>();
+        CraftPlanner.Reason[] reasons = CraftPlanner.Reason.values();
+        for (int i = 0; i < blockerCount; i++) {
+            ItemStack stack = Buf.readStack(buf);
+            int missing = buf.readInt();
+            int reason = buf.readInt();
+            if (stack.isEmpty() || reason < 0 || reason >= reasons.length) continue;
+            blockers.add(new CraftPlanner.Blocker(ItemKey.of(stack), missing, reasons[reason]));
+        }
     }
 
     public static class Handler implements IMessageHandler<CraftPreviewResponsePacket, IMessage> {
@@ -61,7 +81,7 @@ public class CraftPreviewResponsePacket implements IMessage {
                 @Override
                 public void run() {
                     com.sxilverr.quickcraft.client.ClientNetworkHandler.onCraftPreview(
-                            msg.craftable, msg.requested, msg.gained);
+                            msg.craftable, msg.requested, msg.gained, msg.blockers);
                 }
             });
             return null;

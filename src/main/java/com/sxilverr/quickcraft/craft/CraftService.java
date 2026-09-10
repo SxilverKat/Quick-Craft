@@ -2,9 +2,7 @@ package com.sxilverr.quickcraft.craft;
 
 import com.sxilverr.quickcraft.QuickCraftConfig;
 import com.sxilverr.quickcraft.crafting.Availability;
-import com.sxilverr.quickcraft.crafting.CraftNode;
 import com.sxilverr.quickcraft.crafting.CraftTrees;
-import com.sxilverr.quickcraft.crafting.EmcLookup;
 import com.sxilverr.quickcraft.crafting.ItemKey;
 import com.sxilverr.quickcraft.crafting.RecipeResolver;
 import com.sxilverr.quickcraft.crafting.ServerRecipeCache;
@@ -20,7 +18,6 @@ import com.sxilverr.quickcraft.storage.DamageMatch;
 import com.sxilverr.quickcraft.storage.ItemSource;
 import com.sxilverr.quickcraft.storage.ItemSourceFactory;
 import com.sxilverr.quickcraft.storage.LabeledSource;
-import com.sxilverr.quickcraft.util.Reg;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -78,42 +75,32 @@ public final class CraftService {
             return new CraftSummary(given, given, null, deposit.placements(), deposit.dropped(), deposit.byproducts());
         }
 
-        RecipeResolver resolver = ServerRecipeCache.get();
-        TreeBuilder builder = new TreeBuilder(resolver, QuickCraftConfig.preferredItems(),
-                QuickCraftConfig.maxTreeDepth(), QuickCraftConfig.maxTreeNodes());
-
+        TreeBuilder builder = newBuilder();
         CompositeItemSource source = extractionSource(labeled);
         VirtualPool initial = poolFrom(source.snapshot());
         Stations stations = StationScan.detect(player.world, player);
-
         EmcSession emc = openEmcSession(player);
-        builder.setEmcLookup(lookupFor(emc));
-
         ItemKey targetKey = ItemKey.of(target);
+
         Shortfall shortfall = null;
         for (int attempt = 0; attempt < MAX_COMMIT_ATTEMPTS; attempt++) {
-            Availability availability = Availability.Factory.of(new HashMap<ItemKey, Integer>(initial.counts()));
-            CraftNode root = builder.build(target, qty, overrides, ingredientChoices, availability, stations,
-                    QuickCraftConfig.collapseOwnedItems(), QuickCraftConfig.hideLoopingRecipes());
+            CraftPlanner.Plan plan = CraftPlanner.plan(builder, target, qty, overrides, ingredientChoices, initial,
+                    Availability.Factory.of(new HashMap<ItemKey, Integer>(initial.counts())), stations,
+                    QuickCraftConfig.collapseOwnedItems(), QuickCraftConfig.hideLoopingRecipes(), emc, null);
 
-            EmcBank bank = emc == null ? null : emc.bank(collectKeys(root, new HashSet<ItemKey>()));
-            VirtualPool working = initial.copy();
-            working.setEmc(bank);
-            CraftExecutor.simulate(root, working);
-            buyTarget(bank, initial, working, targetKey, qty);
-
-            shortfall = commit(source, deposit, initial, working, targetKey, emc, bank, player, destinationId);
+            shortfall = commit(source, deposit, initial, plan.working(), targetKey, emc, plan.bank(), player, destinationId);
             if (shortfall != null) {
                 initial.limit(shortfall.key, shortfall.got);
                 continue;
             }
-            if (emc != null) emc.apply(bank, working.producedKeys());
+            if (emc != null) emc.apply(plan.bank(), plan.working().producedKeys());
 
-            int crafted = Math.max(0, working.count(targetKey) - initial.count(targetKey));
+            int crafted = plan.craftable();
             if (crafted > 0) playCraftSound(player);
-            Station missing = CraftTrees.missingStation(root);
-            return new CraftSummary(Math.min(crafted, qty), qty, missing == null ? null : missing.displayName(),
-                    deposit.placements(), deposit.dropped(), deposit.byproducts());
+            Station missing = CraftTrees.missingStation(plan.root());
+            return new CraftSummary(crafted, qty, missing == null ? null : missing.displayName(),
+                    deposit.placements(), deposit.dropped(), deposit.byproducts(), ItemStack.EMPTY, 0,
+                    plan.truncated(), plan.blockers());
         }
         return CraftSummary.aborted(qty, shortfall.key.toStack(1), shortfall.wanted);
     }
@@ -134,57 +121,27 @@ public final class CraftService {
         }
 
         List<LabeledSource> labeled = ItemSourceFactory.scan(player, QuickCraftConfig.containerScanRange());
-        ItemSource source = extractionSource(labeled);
-        Map<ItemKey, Integer> owned = ownedCounts(source.snapshot());
+        VirtualPool initial = poolFrom(extractionSource(labeled).snapshot());
+        CraftPlanner.Plan plan = CraftPlanner.plan(newBuilder(), target, qty, overrides, ingredientChoices, initial,
+                Availability.Factory.of(new HashMap<ItemKey, Integer>(initial.counts())),
+                StationScan.detect(player.world, player), QuickCraftConfig.collapseOwnedItems(),
+                QuickCraftConfig.hideLoopingRecipes(), openEmcSession(player), null);
+        return plan.toResult();
+    }
 
+    private static TreeBuilder newBuilder() {
         RecipeResolver resolver = ServerRecipeCache.get();
-        TreeBuilder builder = new TreeBuilder(resolver, QuickCraftConfig.preferredItems(),
+        return new TreeBuilder(resolver, QuickCraftConfig.preferredItems(),
                 QuickCraftConfig.maxTreeDepth(), QuickCraftConfig.maxTreeNodes());
-
-        Availability availability = Availability.Factory.of(owned);
-        Stations stations = StationScan.detect(player.world, player);
-
-        EmcSession emc = openEmcSession(player);
-        builder.setEmcLookup(lookupFor(emc));
-
-        CraftNode root = builder.build(target, qty, overrides, ingredientChoices, availability, stations,
-                QuickCraftConfig.collapseOwnedItems(), QuickCraftConfig.hideLoopingRecipes());
-        EmcBank bank = emc == null ? null : emc.bank(collectKeys(root, new HashSet<ItemKey>()));
-        return CraftPreview.simulate(root, owned, target, qty, bank);
     }
 
     private static int creativeQuantity(ItemStack target, int requested) {
         return Math.min(requested, Math.max(1, target.getMaxStackSize()) * INVENTORY_SLOTS);
     }
 
-    private static EmcLookup lookupFor(final EmcSession emc) {
-        if (emc == null) return EmcLookup.NONE;
-        return new EmcLookup() {
-            @Override
-            public boolean obtainable(ItemKey key) {
-                ItemStack stack = key.toStack(1);
-                return emc.learned(stack) && emc.value(stack) > 0L;
-            }
-        };
-    }
-
     private static EmcSession openEmcSession(EntityPlayerMP player) {
         if (!QuickCraftConfig.useProjectEEmc() || !ProjectESupport.available()) return null;
         return EmcSession.open(player, QuickCraftConfig.containerScanRange());
-    }
-
-    private static Set<ItemKey> collectKeys(CraftNode node, Set<ItemKey> out) {
-        out.add(ItemKey.of(node.output));
-        for (CraftNode child : node.children) collectKeys(child, out);
-        return out;
-    }
-
-    private static void buyTarget(EmcBank bank, VirtualPool initial, VirtualPool working, ItemKey targetKey, int qty) {
-        if (bank == null || !bank.supplies(targetKey)) return;
-        int made = Math.max(0, working.count(targetKey) - initial.count(targetKey));
-        if (made >= qty) return;
-        int buy = Math.min(qty - made, bank.affordable(targetKey));
-        if (buy > 0 && bank.buy(targetKey, buy)) working.produce(targetKey, buy);
     }
 
     public static final class AvailabilitySnapshot {
@@ -218,21 +175,42 @@ public final class CraftService {
         Map<ItemKey, ItemStack> samples = new HashMap<ItemKey, ItemStack>();
         if (keys.isEmpty()) return new AvailabilitySnapshot(counts, sources, samples);
 
-        ItemSource source = ItemSourceFactory.forPlayer(player, QuickCraftConfig.containerScanRange());
-        List<ItemStack> snapshot = null;
+        Map<ItemKey, Integer> exact = new HashMap<ItemKey, Integer>();
+        Map<ItemKey, Integer> loose = new HashMap<ItemKey, Integer>();
+        Map<ItemKey, ItemStack> exactIcons = new HashMap<ItemKey, ItemStack>();
+        Map<ItemKey, ItemStack> looseIcons = new HashMap<ItemKey, ItemStack>();
+        List<ItemStack> all = new ArrayList<ItemStack>();
+        for (LabeledSource labeled : ItemSourceFactory.scan(player, QuickCraftConfig.containerScanRange())) {
+            ItemStack icon = labeled.source().sourceIcon();
+            for (ItemStack stack : labeled.source().snapshot()) {
+                if (stack == null || stack.isEmpty()) continue;
+                all.add(stack);
+                ItemKey key = ItemKey.of(stack);
+                merge(exact, key, stack.getCount());
+                merge(loose, key.loose(), stack.getCount());
+                if (icon == null || icon.isEmpty()) continue;
+                if (!exactIcons.containsKey(key)) exactIcons.put(key, icon);
+                if (!looseIcons.containsKey(key.loose())) looseIcons.put(key.loose(), icon);
+            }
+        }
         for (ItemKey key : keys) {
-            ItemStack rep = key.toStack(1);
-            int available = source.extractMatching(rep, Integer.MAX_VALUE, true);
+            Integer found = key.isLoose() ? loose.get(key) : exact.get(key);
+            int available = found == null ? 0 : found;
             counts.put(key, available);
             if (available <= 0) continue;
-            ItemStack icon = source.sourceIconFor(rep);
+            ItemStack icon = key.isLoose() ? looseIcons.get(key) : exactIcons.get(key);
             if (icon != null && !icon.isEmpty()) sources.put(key, icon);
+            ItemStack rep = key.toStack(1);
             if (!DamageMatch.tolerant(rep)) continue;
-            if (snapshot == null) snapshot = source.snapshot();
-            ItemStack sample = DamageMatch.worst(snapshot, rep);
+            ItemStack sample = DamageMatch.worst(all, rep);
             if (!sample.isEmpty()) samples.put(key, sample);
         }
         return new AvailabilitySnapshot(counts, sources, samples);
+    }
+
+    private static void merge(Map<ItemKey, Integer> map, ItemKey key, int amount) {
+        Integer existing = map.get(key);
+        map.put(key, existing == null ? amount : existing + amount);
     }
 
     public static List<LabeledSource> depositTargets(EntityPlayerMP player) {
@@ -250,18 +228,8 @@ public final class CraftService {
         return new CompositeItemSource(sources);
     }
 
-    private static Map<ItemKey, Integer> ownedCounts(List<ItemStack> snapshot) {
-        Map<ItemKey, Integer> owned = new HashMap<ItemKey, Integer>();
-        for (ItemStack stack : snapshot) {
-            ItemKey key = ItemKey.of(stack);
-            Integer existing = owned.get(key);
-            owned.put(key, existing == null ? stack.getCount() : existing + stack.getCount());
-        }
-        return owned;
-    }
-
     private static VirtualPool poolFrom(List<ItemStack> snapshot) {
-        VirtualPool pool = new VirtualPool();
+        VirtualPool pool = new VirtualPool(true);
         for (ItemStack stack : snapshot) pool.addStack(stack);
         return pool;
     }
@@ -276,7 +244,7 @@ public final class CraftService {
         Set<ItemKey> keys = new HashSet<ItemKey>(initial.counts().keySet());
         keys.addAll(working.counts().keySet());
         for (ItemKey key : keys) {
-            int delta = working.count(key) - initial.count(key);
+            int delta = working.exact(key) - initial.exact(key);
             if (delta < 0) consumed.put(key, -delta);
             else if (delta > 0) produced.put(key, delta);
         }

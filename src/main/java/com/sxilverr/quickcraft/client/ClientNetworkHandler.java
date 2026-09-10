@@ -1,5 +1,6 @@
 package com.sxilverr.quickcraft.client;
 
+import com.sxilverr.quickcraft.craft.CraftPlanner;
 import com.sxilverr.quickcraft.craft.CraftPreview;
 import com.sxilverr.quickcraft.crafting.ItemKey;
 import com.sxilverr.quickcraft.crafting.Stations;
@@ -21,10 +22,11 @@ public final class ClientNetworkHandler {
         if (screen != null) screen.setAvailability(counts, sources, samples, stations);
     }
 
-    public static void onCraftPreview(int craftable, int requested, List<CraftPreview.Gain> gained) {
+    public static void onCraftPreview(int craftable, int requested, List<CraftPreview.Gain> gained,
+                                      List<CraftPlanner.Blocker> blockers) {
         QuickCraftScreen screen = openScreen();
         if (screen != null) {
-            screen.onCraftPreviewResult(new CraftPreview.Result(craftable, requested, gained));
+            screen.onCraftPreviewResult(new CraftPreview.Result(craftable, requested, gained, blockers));
         }
     }
 

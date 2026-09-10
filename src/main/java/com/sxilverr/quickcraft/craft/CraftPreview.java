@@ -1,13 +1,10 @@
 package com.sxilverr.quickcraft.craft;
 
-import com.sxilverr.quickcraft.crafting.CraftNode;
 import com.sxilverr.quickcraft.crafting.ItemKey;
 import net.minecraft.item.ItemStack;
 
-import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 public final class CraftPreview {
     private CraftPreview() {
@@ -39,11 +36,17 @@ public final class CraftPreview {
         private final int craftable;
         private final int requested;
         private final List<Gain> gained;
+        private final List<CraftPlanner.Blocker> blockers;
 
         public Result(int craftable, int requested, List<Gain> gained) {
+            this(craftable, requested, gained, Collections.<CraftPlanner.Blocker>emptyList());
+        }
+
+        public Result(int craftable, int requested, List<Gain> gained, List<CraftPlanner.Blocker> blockers) {
             this.craftable = craftable;
             this.requested = requested;
             this.gained = gained;
+            this.blockers = blockers;
         }
 
         public int craftable() {
@@ -58,48 +61,12 @@ public final class CraftPreview {
             return gained;
         }
 
+        public List<CraftPlanner.Blocker> blockers() {
+            return blockers;
+        }
+
         public boolean full() {
             return requested > 0 && craftable >= requested;
         }
-    }
-
-    public static Result simulate(CraftNode root, Map<ItemKey, Integer> have, ItemStack target, int quantity) {
-        return simulate(root, have, target, quantity, null);
-    }
-
-    public static Result simulate(CraftNode root, Map<ItemKey, Integer> have, ItemStack target,
-                                  int quantity, EmcBank bank) {
-        VirtualPool initial = new VirtualPool();
-        for (Map.Entry<ItemKey, Integer> entry : have.entrySet()) {
-            initial.add(entry.getKey(), entry.getValue());
-        }
-        VirtualPool working = initial.copy();
-        working.setEmc(bank);
-        CraftExecutor.simulate(root, working);
-
-        final ItemKey targetKey = ItemKey.of(target);
-        int crafted = Math.max(0, working.count(targetKey) - initial.count(targetKey));
-        if (bank != null && crafted < quantity && bank.supplies(targetKey)) {
-            int buy = Math.min(quantity - crafted, bank.affordable(targetKey));
-            if (buy > 0 && bank.buy(targetKey, buy)) working.produce(targetKey, buy);
-        }
-        int craftable = Math.max(0, working.count(targetKey) - initial.count(targetKey));
-
-        List<Gain> gained = new ArrayList<Gain>();
-        for (ItemKey key : working.counts().keySet()) {
-            int delta = working.count(key) - initial.count(key);
-            if (delta > 0) gained.add(new Gain(key, delta));
-        }
-        gained.sort(new Comparator<Gain>() {
-            @Override
-            public int compare(Gain a, Gain b) {
-                int tierA = a.key().equals(targetKey) ? 0 : 1;
-                int tierB = b.key().equals(targetKey) ? 0 : 1;
-                if (tierA != tierB) return tierA - tierB;
-                return Integer.compare(b.count(), a.count());
-            }
-        });
-
-        return new Result(Math.min(craftable, Math.max(0, quantity)), quantity, gained);
     }
 }

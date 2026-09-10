@@ -47,7 +47,8 @@ public final class QuickCraftNetwork {
     }
 
     public static void sendCraftPreview(EntityPlayerMP player, CraftPreview.Result result) {
-        CHANNEL.sendTo(new CraftPreviewResponsePacket(result.craftable(), result.requested(), result.gained()), player);
+        CHANNEL.sendTo(new CraftPreviewResponsePacket(result.craftable(), result.requested(), result.gained(),
+                result.blockers()), player);
     }
 
     public static void requestDepositTargets() {

@@ -2,6 +2,7 @@ package com.sxilverr.quickcraft.integration.projecte;
 
 import com.sxilverr.quickcraft.QuickCraftConfig;
 import com.sxilverr.quickcraft.craft.EmcBank;
+import com.sxilverr.quickcraft.craft.EmcSource;
 import com.sxilverr.quickcraft.crafting.ItemKey;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -12,7 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-public final class EmcSession {
+public final class EmcSession implements EmcSource {
     private static final BigInteger LONG_CAP = BigInteger.valueOf(Long.MAX_VALUE);
     private static final BigInteger CAPACITY_CAP = BigInteger.valueOf(1000000);
 
