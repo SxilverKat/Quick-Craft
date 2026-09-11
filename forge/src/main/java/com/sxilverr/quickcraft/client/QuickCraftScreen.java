@@ -185,6 +185,8 @@ public class QuickCraftScreen extends Screen {
     private String emcCostText;
     private boolean emcAffordable = true;
     private BigInteger lastEmc;
+    private BigInteger emcRequired = BigInteger.ZERO;
+    private boolean planFull;
     private int emcPollTicks;
     private static final int EMC_POLL_TICKS = 20;
     private final Map<ItemKey, Integer> emcSupplied = new HashMap<>();
@@ -306,8 +308,10 @@ public class QuickCraftScreen extends Screen {
         emcSupplied.putAll(plan.supplied());
         BigInteger owned = emcSource.emc();
         lastEmc = owned;
+        planFull = plan.full();
         BigInteger required = plan.spentEmc();
-        if (!plan.full()) required = planFor(qty, stations, collapse, hideLoop, EMC_UNLIMITED, true).spentEmc();
+        if (!planFull) required = planFor(qty, stations, collapse, hideLoop, EMC_UNLIMITED, true).spentEmc();
+        emcRequired = required;
         emcAffordable = required.compareTo(owned) <= 0;
         if (!QuickCraftClientConfig.showEmc()) return;
         emcTotalText = ProjectEClient.format(owned);
@@ -404,10 +408,19 @@ public class QuickCraftScreen extends Screen {
         if (emcSource == null || lastEmc == null) return;
         if (++emcPollTicks < EMC_POLL_TICKS) return;
         emcPollTicks = 0;
-        if (emcSource.emc().equals(lastEmc)) return;
-        applyingAvailability = true;
-        rebuild();
-        applyingAvailability = false;
+        BigInteger owned = emcSource.emc();
+        if (owned.equals(lastEmc)) return;
+        boolean shrunk = owned.compareTo(lastEmc) < 0;
+        lastEmc = owned;
+        if (!planFull || shrunk) {
+            applyingAvailability = true;
+            rebuild();
+            applyingAvailability = false;
+            return;
+        }
+        emcAffordable = emcRequired.compareTo(owned) <= 0;
+        if (QuickCraftClientConfig.showEmc()) emcTotalText = ProjectEClient.format(owned);
+        computeSummaryEmc(summaryItems);
     }
 
     @Override
@@ -588,7 +601,7 @@ public class QuickCraftScreen extends Screen {
     }
 
     private java.util.Set<ItemKey> relevantKeys() {
-        java.util.Set<ItemKey> keys = new java.util.HashSet<>();
+        java.util.Set<ItemKey> keys = new java.util.LinkedHashSet<>();
         keys.add(ItemKey.of(target));
         collectTreeKeys(root, keys);
         keys.addAll(builder.loopIngredientKeys());
