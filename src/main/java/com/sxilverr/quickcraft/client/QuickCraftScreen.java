@@ -50,6 +50,7 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -202,6 +203,8 @@ public class QuickCraftScreen extends GuiScreen {
     private String emcCostText;
     private boolean emcAffordable = true;
     private BigInteger lastEmc;
+    private BigInteger emcRequired = BigInteger.ZERO;
+    private boolean planFull;
     private int emcPollTicks;
     private static final int EMC_POLL_TICKS = 20;
     private final Map<ItemKey, Integer> emcSupplied = new HashMap<ItemKey, Integer>();
@@ -223,6 +226,7 @@ public class QuickCraftScreen extends GuiScreen {
     @Override
     public void initGui() {
         Keyboard.enableRepeatEvents(true);
+        this.fontRenderer = BatchedFontRenderer.get(this.mc);
         this.buttonList.clear();
 
         resolver = ClientRecipeCache.get();
@@ -303,10 +307,19 @@ public class QuickCraftScreen extends GuiScreen {
         if (emcSource == null || lastEmc == null) return;
         if (++emcPollTicks < EMC_POLL_TICKS) return;
         emcPollTicks = 0;
-        if (emcSource.emc().equals(lastEmc)) return;
-        applyingAvailability = true;
-        rebuild();
-        applyingAvailability = false;
+        BigInteger owned = emcSource.emc();
+        if (owned.equals(lastEmc)) return;
+        boolean shrunk = owned.compareTo(lastEmc) < 0;
+        lastEmc = owned;
+        if (!planFull || shrunk) {
+            applyingAvailability = true;
+            rebuild();
+            applyingAvailability = false;
+            return;
+        }
+        emcAffordable = emcRequired.compareTo(owned) <= 0;
+        if (QuickCraftConfig.showEmc()) emcTotalText = ProjectEClient.format(owned);
+        computeSummaryEmc(summaryItems);
     }
 
     private void close() {
@@ -519,7 +532,7 @@ public class QuickCraftScreen extends GuiScreen {
     }
 
     private Set<ItemKey> relevantKeys() {
-        Set<ItemKey> keys = new HashSet<ItemKey>();
+        Set<ItemKey> keys = new LinkedHashSet<ItemKey>();
         keys.add(ItemKey.of(target));
         collectKeys(root, keys);
         keys.addAll(builder.loopIngredientKeys());
@@ -662,8 +675,10 @@ public class QuickCraftScreen extends GuiScreen {
         emcSupplied.putAll(plan.supplied());
         BigInteger owned = emcSource.emc();
         lastEmc = owned;
+        planFull = plan.full();
         BigInteger required = plan.spentEmc();
-        if (!plan.full()) required = planFor(qty, stations, collapse, hideLoop, EMC_UNLIMITED, true).spentEmc();
+        if (!planFull) required = planFor(qty, stations, collapse, hideLoop, EMC_UNLIMITED, true).spentEmc();
+        emcRequired = required;
         emcAffordable = required.compareTo(owned) <= 0;
         if (!QuickCraftConfig.showEmc()) return;
         emcTotalText = ProjectEClient.format(owned);
@@ -717,11 +732,13 @@ public class QuickCraftScreen extends GuiScreen {
         if (animate && root != null) {
             drawTreeAnimated();
         } else if (layout != null) {
+            Draw.beginFills();
             for (NodeView view : layout.ordered) {
                 for (CraftNode child : view.node.children) {
                     drawEdge(view, layout.views.get(child), 1.0);
                 }
             }
+            Draw.endFills();
             for (NodeView view : layout.ordered) {
                 if (bulge && view == hoveredView) drawNodeScaled(view, HOVER_BULGE);
                 else drawNode(view);
@@ -1177,6 +1194,7 @@ public class QuickCraftScreen extends GuiScreen {
         if (rootView == null) return;
         computeAnim(root, rootView.x + rootView.width / 2.0, rootView.y + NodeView.HEIGHT / 2.0, elapsed);
 
+        Draw.beginFills();
         for (NodeView view : layout.ordered) {
             double[] pa = animData.get(view.node);
             if (pa == null) continue;
@@ -1186,6 +1204,7 @@ public class QuickCraftScreen extends GuiScreen {
                 drawEdge(view, layout.views.get(child), ca[2]);
             }
         }
+        Draw.endFills();
         boolean bulge = QuickCraftConfig.hoverBulge() && hoveredView != null;
         for (NodeView view : layout.ordered) {
             double[] a = animData.get(view.node);

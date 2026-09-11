@@ -53,6 +53,7 @@ public class ForceCraftConfirmScreen extends GuiScreen {
 
     @Override
     public void initGui() {
+        this.fontRenderer = BatchedFontRenderer.get(this.mc);
         this.buttonList.clear();
         forceX = this.width / 2 - FORCE_W / 2;
         forceY = this.height / 2 - 34 + blockerLines() * 10;

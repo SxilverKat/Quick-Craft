@@ -4,7 +4,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.ScaledResolution;
+import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.WorldVertexBufferUploader;
+import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.RenderItem;
 import net.minecraft.item.ItemStack;
@@ -14,12 +17,52 @@ import org.lwjgl.opengl.GL11;
 import java.util.List;
 
 public final class Draw {
+    private static final BufferBuilder FILLS = new BufferBuilder(4096);
+    private static final WorldVertexBufferUploader UPLOADER = new WorldVertexBufferUploader();
+    private static boolean batchingFills;
+
     private Draw() {
     }
 
-    public static void fill(int left, int top, int right, int bottom, int color) {
-        Gui.drawRect(left, top, right, bottom, color);
+    public static void beginFills() {
+        if (batchingFills) return;
+        FILLS.begin(7, DefaultVertexFormats.POSITION_COLOR);
+        batchingFills = true;
+    }
+
+    public static void endFills() {
+        if (!batchingFills) return;
+        batchingFills = false;
+        GlStateManager.enableBlend();
+        GlStateManager.disableTexture2D();
+        GlStateManager.tryBlendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA,
+                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA, GlStateManager.SourceFactor.ONE,
+                GlStateManager.DestFactor.ZERO);
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+        FILLS.finishDrawing();
+        UPLOADER.draw(FILLS);
+        GlStateManager.enableTexture2D();
+        GlStateManager.disableBlend();
+    }
+
+    public static void fill(int left, int top, int right, int bottom, int color) {
+        if (!batchingFills) {
+            Gui.drawRect(left, top, right, bottom, color);
+            GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+            return;
+        }
+        int x0 = Math.min(left, right);
+        int x1 = Math.max(left, right);
+        int y0 = Math.min(top, bottom);
+        int y1 = Math.max(top, bottom);
+        float a = (color >> 24 & 255) / 255.0F;
+        float r = (color >> 16 & 255) / 255.0F;
+        float g = (color >> 8 & 255) / 255.0F;
+        float b = (color & 255) / 255.0F;
+        FILLS.pos(x0, y1, 0.0D).color(r, g, b, a).endVertex();
+        FILLS.pos(x1, y1, 0.0D).color(r, g, b, a).endVertex();
+        FILLS.pos(x1, y0, 0.0D).color(r, g, b, a).endVertex();
+        FILLS.pos(x0, y0, 0.0D).color(r, g, b, a).endVertex();
     }
 
     public static void outline(int x, int y, int width, int height, int color) {
