@@ -96,17 +96,18 @@ public final class CraftPlanner {
         Map<ItemKey, Integer> totals = CraftTrees.leafTotals(root);
         Map<ItemKey, CraftNode> samples = CraftTrees.leafSamples(root);
         List<Blocker> out = new ArrayList<>();
+        boolean stationMissing = CraftTrees.missingStation(root) != null;
         for (Map.Entry<ItemKey, Integer> entry : totals.entrySet()) {
             ItemKey key = entry.getKey();
             int bought = bank == null ? 0 : bank.purchased().getOrDefault(key, 0);
             int missing = entry.getValue() - initial.count(key) - bought;
             if (missing <= 0) continue;
-            out.add(new Blocker(key, missing, reasonFor(samples.get(key), key, emc)));
+            out.add(new Blocker(key, missing, reasonFor(samples.get(key), key, emc, stationMissing)));
         }
         return out;
     }
 
-    private static Reason reasonFor(CraftNode node, ItemKey key, EmcSource emc) {
+    private static Reason reasonFor(CraftNode node, ItemKey key, EmcSource emc, boolean stationMissing) {
         if (node != null) {
             if (node.truncated) return Reason.TREE_LIMIT;
             if (node.cyclic) return Reason.LOOP;
@@ -115,7 +116,10 @@ public final class CraftPlanner {
         }
         if (emc != null) {
             ItemStack stack = key.toStack(1);
-            if (emc.value(stack) > 0L) return emc.learned(stack) ? Reason.NOT_ENOUGH_EMC : Reason.NOT_LEARNED;
+            if (emc.value(stack) > 0L) {
+                if (!emc.learned(stack)) return Reason.NOT_LEARNED;
+                return stationMissing ? Reason.STATION : Reason.NOT_ENOUGH_EMC;
+            }
         }
         if (node != null && node.catalyst) return Reason.CATALYST;
         return Reason.NO_RECIPE;

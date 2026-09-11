@@ -34,7 +34,7 @@ public class TreeBuilder {
     private Availability availability = Availability.NONE;
     private Stations stations = new Stations(3, true, false, false, false, false, false, null, null, null);
     private boolean collapseOwned = true;
-    private boolean hideLooping = true;
+    private boolean hideLooping = false;
     private final Map<ItemKey, Integer> claimedStock = new HashMap<>();
     private final Set<ItemKey> loopIngredients = new HashSet<>();
     private final Map<ItemKey, CraftNode> expanded = new HashMap<>();
@@ -84,14 +84,15 @@ public class TreeBuilder {
         int freeStock = availability.available(outputKey) - claimed;
         node.freeStock = Math.max(0, freeStock);
 
+        boolean root = depth == 0;
         node.autoRecipe = alternatives.isEmpty() ? -1 : autoBestIndex(output, alternatives, requiredCount);
         node.selectedRecipe = resolveSelection(output, alternatives, node.autoRecipe);
         if (node.selectedRecipe < 0) {
             if (!catalyst) claimedStock.merge(outputKey, Math.min(node.freeStock, requiredCount), Integer::sum);
+            if (!root && freeStock < requiredCount && emcLookup.obtainable(outputKey)) node.emcBuy = true;
             return node;
         }
 
-        boolean root = depth == 0;
         RecipeOption option = node.selected();
         if (!root && collapseOwned && freeStock >= requiredCount) {
             node.owned = true;
@@ -141,7 +142,7 @@ public class TreeBuilder {
             ItemKey key = ItemKey.of(choice);
             childOptions.putIfAbsent(key, items);
             if (isCatalystIngredient(items)) catalysts.add(key);
-            else needs.merge(key, crafts, Integer::sum);
+            else needs.merge(key, crafts, (a, b) -> clamp((long) a + b));
         }
         Set<ItemKey> kept = new HashSet<>();
         for (ItemKey key : catalysts) {
@@ -171,7 +172,7 @@ public class TreeBuilder {
             if (choice.isEmpty()) continue;
             ItemKey key = ItemKey.of(choice);
             if (isCatalystIngredient(ingredient.getItems())) needs.putIfAbsent(key, 1);
-            else needs.merge(key, crafts, Integer::sum);
+            else needs.merge(key, crafts, (a, b) -> clamp((long) a + b));
         }
         if (needs.isEmpty()) return false;
         for (Map.Entry<ItemKey, Integer> entry : needs.entrySet()) {
@@ -240,7 +241,7 @@ public class TreeBuilder {
             ItemStack choice = chooseIngredient(ingredient);
             if (choice.isEmpty()) continue;
             if (isCatalystIngredient(ingredient.getItems())) needs.putIfAbsent(ItemKey.of(choice), 1);
-            else needs.merge(ItemKey.of(choice), crafts, Integer::sum);
+            else needs.merge(ItemKey.of(choice), crafts, (a, b) -> clamp((long) a + b));
         }
 
         int fullyAvailable = 0;
@@ -330,7 +331,7 @@ public class TreeBuilder {
             boolean loops = loopsThrough(choice, outputKey);
             if (!loops) continue;
             loopIngredients.add(choiceKey);
-            if (availability.available(choiceKey) <= 0) hidden = true;
+            if (availability.available(choiceKey) <= 0 && !emcLookup.obtainable(choiceKey)) hidden = true;
         }
         return hidden;
     }
@@ -368,7 +369,10 @@ public class TreeBuilder {
 
     private Reach reach(ItemKey item, ItemKey output, Set<ItemKey> visited, int depth, boolean checkStock) {
         if (item.equals(output)) return Reach.DEAD;
-        if (checkStock && availability.available(item) > 0) return Reach.OK;
+        if (checkStock) {
+            loopIngredients.add(item);
+            if (availability.available(item) > 0) return Reach.OK;
+        }
         if (depth >= REACH_DEPTH) return Reach.OK;
         if (visited.contains(item)) return new Reach(false, Set.of(item));
         Map<ItemKey, Reach> memo = reachMemo.computeIfAbsent(output, k -> new HashMap<>());
@@ -379,15 +383,17 @@ public class TreeBuilder {
         visited.add(item);
         boolean anyDead = false;
         Set<ItemKey> cycles = new HashSet<>();
-        Reach result = null;
-        for (RecipeOption recipe : recipes) {
-            Reach r = reachRecipe(recipe, output, visited, depth + 1);
-            if (r.ok()) {
-                result = Reach.OK;
-                break;
+        Reach result = cookedFromRaw(item, output, visited, depth) ? Reach.OK : null;
+        if (result == null) {
+            for (RecipeOption recipe : recipes) {
+                Reach r = reachRecipe(recipe, output, visited, depth + 1);
+                if (r.ok()) {
+                    result = Reach.OK;
+                    break;
+                }
+                if (r.dead) anyDead = true;
+                cycles.addAll(r.cycles);
             }
-            if (r.dead) anyDead = true;
-            cycles.addAll(r.cycles);
         }
         visited.remove(item);
         if (result == null) {
@@ -397,6 +403,16 @@ public class TreeBuilder {
         }
         if (checkStock && result.cycles.isEmpty()) memo.put(item, result);
         return result;
+    }
+
+    private boolean cookedFromRaw(ItemKey item, ItemKey output, Set<ItemKey> visited, int depth) {
+        for (Ingredient ingredient : resolver.cookingInputs(item.toStack(1))) {
+            for (ItemStack stack : ingredient.getItems()) {
+                if (stack.isEmpty()) continue;
+                if (reach(ItemKey.of(stack), output, visited, depth + 1, true).ok()) return true;
+            }
+        }
+        return false;
     }
 
     private Reach reachRecipe(RecipeOption recipe, ItemKey output, Set<ItemKey> visited, int depth) {
@@ -468,6 +484,10 @@ public class TreeBuilder {
     }
 
     private static int ceilDiv(int a, int b) {
-        return (a + b - 1) / b;
+        return clamp(((long) a + b - 1) / b);
+    }
+
+    private static int clamp(long value) {
+        return (int) Math.min(Integer.MAX_VALUE, Math.max(0L, value));
     }
 }

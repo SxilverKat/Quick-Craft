@@ -42,8 +42,12 @@ public class VirtualPool {
 
     public void add(ItemKey key, int amount) {
         if (amount <= 0) return;
-        counts.merge(key, amount, Integer::sum);
-        byLoose.merge(key.loose(), amount, Integer::sum);
+        counts.merge(key, amount, VirtualPool::saturatingAdd);
+        byLoose.merge(key.loose(), amount, VirtualPool::saturatingAdd);
+    }
+
+    private static int saturatingAdd(int a, int b) {
+        return (int) Math.min(Integer.MAX_VALUE, (long) a + b);
     }
 
     public void addStack(ItemStack stack) {
@@ -54,7 +58,7 @@ public class VirtualPool {
     public void produce(ItemKey key, int amount) {
         if (amount <= 0) return;
         add(key, amount);
-        produced.merge(key, amount, Integer::sum);
+        produced.merge(key, amount, VirtualPool::saturatingAdd);
     }
 
     public Set<ItemKey> producedKeys() {

@@ -9,6 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.crafting.AbstractCookingRecipe;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
@@ -28,6 +29,7 @@ public class RecipeResolver {
 
     private final RegistryAccess registryAccess;
     private final Map<Item, List<RecipeOption>> byResult = new HashMap<>();
+    private final Map<Item, List<Ingredient>> cookedFrom = new HashMap<>();
 
     public RecipeResolver(RecipeManager recipeManager, RegistryAccess registryAccess) {
         this.registryAccess = registryAccess;
@@ -36,6 +38,7 @@ public class RecipeResolver {
         indexStonecutting(recipeManager);
         indexModded(recipeManager);
         indexTacz();
+        indexCooking(recipeManager);
     }
 
     private void indexCrafting(RecipeManager recipeManager) {
@@ -136,6 +139,30 @@ public class RecipeResolver {
         for (ModdedRecipeOption option : TaczRecipes.collect()) {
             add(option.result().getItem(), option);
         }
+    }
+
+    private void indexCooking(RecipeManager recipeManager) {
+        List<RecipeType<?>> types = List.of(RecipeType.SMELTING, RecipeType.BLASTING, RecipeType.SMOKING, RecipeType.CAMPFIRE_COOKING);
+        for (RecipeType<?> type : types) {
+            for (RecipeEntries.Entry<AbstractCookingRecipe> entry : RecipeEntries.<AbstractCookingRecipe>of(recipeManager, type)) {
+                AbstractCookingRecipe recipe = entry.recipe();
+                ItemStack result;
+                try {
+                    result = recipe.getResultItem(registryAccess);
+                } catch (Throwable t) {
+                    continue;
+                }
+                if (result == null || result.isEmpty()) continue;
+                for (Ingredient ingredient : recipe.getIngredients()) {
+                    if (ingredient == null || ingredient.isEmpty()) continue;
+                    cookedFrom.computeIfAbsent(result.getItem(), k -> new ArrayList<>()).add(ingredient);
+                }
+            }
+        }
+    }
+
+    public List<Ingredient> cookingInputs(ItemStack output) {
+        return cookedFrom.getOrDefault(output.getItem(), List.of());
     }
 
     private void add(Item result, RecipeOption option) {

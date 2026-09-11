@@ -6,7 +6,7 @@ import net.minecraft.world.entity.player.Player;
 import java.math.BigInteger;
 
 public final class ProjectEClient {
-    private static final String[] SUFFIXES = {"", "K", "M", "B", "T", "P", "E"};
+    private static final String[] SUFFIXES = {"", "K", "M", "B", "T", "Q", "Qi", "Sx", "Sp", "Oc", "No", "Dc"};
     private static final BigInteger THOUSAND = BigInteger.valueOf(1000);
 
     private ProjectEClient() {

@@ -184,6 +184,9 @@ public class QuickCraftScreen extends Screen {
     private String emcTotalText;
     private String emcCostText;
     private boolean emcAffordable = true;
+    private BigInteger lastEmc;
+    private int emcPollTicks;
+    private static final int EMC_POLL_TICKS = 20;
     private final Map<ItemKey, Integer> emcSupplied = new HashMap<>();
     private EmcSource emcSource;
     private List<CraftPlanner.Blocker> blockers = List.of();
@@ -298,9 +301,11 @@ public class QuickCraftScreen extends Screen {
         emcTotalText = null;
         emcCostText = null;
         emcAffordable = true;
+        lastEmc = null;
         if (emcSource == null) return;
         emcSupplied.putAll(plan.supplied());
         BigInteger owned = emcSource.emc();
+        lastEmc = owned;
         BigInteger required = plan.spentEmc();
         if (!plan.full()) required = planFor(qty, stations, collapse, hideLoop, EMC_UNLIMITED, true).spentEmc();
         emcAffordable = required.compareTo(owned) <= 0;
@@ -392,6 +397,17 @@ public class QuickCraftScreen extends Screen {
         super.tick();
         boolean shift = hasShiftDown();
         if (shift != shiftActive) applyShiftState(shift);
+        pollEmc();
+    }
+
+    private void pollEmc() {
+        if (emcSource == null || lastEmc == null) return;
+        if (++emcPollTicks < EMC_POLL_TICKS) return;
+        emcPollTicks = 0;
+        if (emcSource.emc().equals(lastEmc)) return;
+        applyingAvailability = true;
+        rebuild();
+        applyingAvailability = false;
     }
 
     @Override
@@ -1333,9 +1349,11 @@ public class QuickCraftScreen extends Screen {
         g.renderItem(stack, rx + 4, ry + 1);
         g.renderItemDecorations(this.font, stack, rx + 4, ry + 1);
         g.drawString(this.font, trim(stack.getHoverName().getString(), 15), rx + 24, ry, 0xFFFFFF, false);
-        int color = have >= need ? COLOR_HAVE
-                : (have + fromEmc >= need ? COLOR_EMC : (have > 0 ? COLOR_CRAFT : COLOR_MISSING));
-        g.drawString(this.font, have + " / " + need, rx + 24, ry + 10, color, false);
+        Integer rowColor = summaryEmcColor.get(entry.getKey());
+        boolean covered = have + fromEmc >= need || (rowColor != null && rowColor == COLOR_EMC);
+        boolean viaEmc = have <= 0 && covered;
+        int color = have >= need ? COLOR_HAVE : (covered ? COLOR_EMC : (have > 0 ? COLOR_CRAFT : COLOR_MISSING));
+        g.drawString(this.font, viaEmc ? "EMC" : have + " / " + need, rx + 24, ry + 10, color, false);
         String emcText = summaryEmcText.get(entry.getKey());
         if (emcText != null) {
             int ex = rx + PANEL_W - 6 - this.font.width(emcText);
@@ -1431,10 +1449,17 @@ public class QuickCraftScreen extends Screen {
         return StationIcons.icon(station);
     }
 
+    private boolean emcCovered(CraftNode node) {
+        ItemKey key = ItemKey.of(node.output);
+        if (effectiveHave(key) >= node.requiredCount) return true;
+        Integer color = summaryEmcColor.get(key);
+        return color != null && color == COLOR_EMC;
+    }
+
     private boolean isCompleted(CraftNode node) {
         if (node == root) return false;
         if (node.owned) return true;
-        if (node.emcBuy) return effectiveHave(ItemKey.of(node.output)) >= node.requiredCount;
+        if (node.emcBuy) return emcCovered(node);
         if (node.isBlockedByStation()) return false;
         return nodeHave(node) >= node.requiredCount;
     }
@@ -1744,7 +1769,7 @@ public class QuickCraftScreen extends Screen {
         if (node == root) return COLOR_ROOT;
         if (!node.craftReachable) return COLOR_DISABLED;
         if (node.owned) return COLOR_HAVE;
-        if (node.emcBuy) return effectiveHave(ItemKey.of(node.output)) >= node.requiredCount ? COLOR_EMC : COLOR_MISSING;
+        if (node.emcBuy) return emcCovered(node) ? COLOR_EMC : COLOR_MISSING;
         int have = nodeHave(node);
         if (have >= node.requiredCount) return COLOR_HAVE;
         if (node.selected() == null || node.truncated) return COLOR_MISSING;
@@ -1774,7 +1799,7 @@ public class QuickCraftScreen extends Screen {
 
     private boolean computeAchievable(CraftNode node) {
         if (node.owned) return true;
-        if (node.emcBuy) return effectiveHave(ItemKey.of(node.output)) >= node.requiredCount;
+        if (node.emcBuy) return emcCovered(node);
         if (node.reference != null) return achievable(node.reference);
         int have = nodeHave(node);
         if (have >= node.requiredCount) return true;

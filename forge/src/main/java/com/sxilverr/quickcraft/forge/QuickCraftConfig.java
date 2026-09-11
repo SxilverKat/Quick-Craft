@@ -81,8 +81,8 @@ public class QuickCraftConfig {
             .define("pinnedListAnimation", true);
 
     private static final ForgeConfigSpec.BooleanValue HIDE_LOOPING_RECIPES = BUILDER
-            .comment("Recipes that loop back on themselves are hidden as options unless you already have the looping item on hand.")
-            .define("hideLoopingRecipes", true);
+            .comment("Hide recipes that loop back on themselves as options unless you already have the looping item on hand.")
+            .define("hideLoopingRecipes", false);
 
     private static final ForgeConfigSpec.BooleanValue OPEN_ONLY_WITH_RECIPE = BUILDER
             .comment("Pressing the Quick Craft key on an item that has no supported recipe does nothing instead of opening an empty menu.")

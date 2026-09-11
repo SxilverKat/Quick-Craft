@@ -46,7 +46,7 @@ public final class EmcBank {
         BigInteger cost = BigInteger.valueOf(v).multiply(BigInteger.valueOf(amount));
         if (cost.compareTo(budget) > 0) return false;
         budget = budget.subtract(cost);
-        purchased.merge(key, amount, Integer::sum);
+        purchased.merge(key, amount, (a, b) -> (int) Math.min(Integer.MAX_VALUE, (long) a + b));
         return true;
     }
 
