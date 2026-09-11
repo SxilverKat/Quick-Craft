@@ -201,6 +201,9 @@ public class QuickCraftScreen extends GuiScreen {
     private String emcTotalText;
     private String emcCostText;
     private boolean emcAffordable = true;
+    private BigInteger lastEmc;
+    private int emcPollTicks;
+    private static final int EMC_POLL_TICKS = 20;
     private final Map<ItemKey, Integer> emcSupplied = new HashMap<ItemKey, Integer>();
     private EmcSource emcSource;
     private List<CraftPlanner.Blocker> blockers = Collections.<CraftPlanner.Blocker>emptyList();
@@ -293,6 +296,17 @@ public class QuickCraftScreen extends GuiScreen {
 
         boolean shift = isShiftKeyDown();
         if (shift != shiftActive) applyShiftState(shift);
+        pollEmc();
+    }
+
+    private void pollEmc() {
+        if (emcSource == null || lastEmc == null) return;
+        if (++emcPollTicks < EMC_POLL_TICKS) return;
+        emcPollTicks = 0;
+        if (emcSource.emc().equals(lastEmc)) return;
+        applyingAvailability = true;
+        rebuild();
+        applyingAvailability = false;
     }
 
     private void close() {
@@ -643,9 +657,11 @@ public class QuickCraftScreen extends GuiScreen {
         emcTotalText = null;
         emcCostText = null;
         emcAffordable = true;
+        lastEmc = null;
         if (emcSource == null) return;
         emcSupplied.putAll(plan.supplied());
         BigInteger owned = emcSource.emc();
+        lastEmc = owned;
         BigInteger required = plan.spentEmc();
         if (!plan.full()) required = planFor(qty, stations, collapse, hideLoop, EMC_UNLIMITED, true).spentEmc();
         emcAffordable = required.compareTo(owned) <= 0;
@@ -1371,9 +1387,11 @@ public class QuickCraftScreen extends GuiScreen {
         Draw.item(stack, rx + 4, ry + 1);
         Draw.itemDecorations(this.fontRenderer, stack, rx + 4, ry + 1);
         Draw.string(this.fontRenderer, trim(stack.getDisplayName(), 15), rx + 24, ry, 0xFFFFFF, false);
-        int color = have >= need ? COLOR_HAVE
-                : (have + fromEmc >= need ? COLOR_EMC : (have > 0 ? COLOR_CRAFT : COLOR_MISSING));
-        Draw.string(this.fontRenderer, have + " / " + need, rx + 24, ry + 10, color, false);
+        Integer rowColor = summaryEmcColor.get(entry.getKey());
+        boolean covered = have + fromEmc >= need || (rowColor != null && rowColor == COLOR_EMC);
+        boolean viaEmc = have <= 0 && covered;
+        int color = have >= need ? COLOR_HAVE : (covered ? COLOR_EMC : (have > 0 ? COLOR_CRAFT : COLOR_MISSING));
+        Draw.string(this.fontRenderer, viaEmc ? "EMC" : have + " / " + need, rx + 24, ry + 10, color, false);
         String emcText = summaryEmcText.get(entry.getKey());
         if (emcText != null) {
             int ex = rx + PANEL_W - 6 - this.fontRenderer.getStringWidth(emcText);
@@ -1470,10 +1488,17 @@ public class QuickCraftScreen extends GuiScreen {
         return StationIcons.icon(station);
     }
 
+    private boolean emcCovered(CraftNode node) {
+        ItemKey key = ItemKey.of(node.output);
+        if (effectiveHave(key) >= node.requiredCount) return true;
+        Integer color = summaryEmcColor.get(key);
+        return color != null && color == COLOR_EMC;
+    }
+
     private boolean isCompleted(CraftNode node) {
         if (node == root) return false;
         if (node.owned) return true;
-        if (node.emcBuy) return effectiveHave(ItemKey.of(node.output)) >= node.requiredCount;
+        if (node.emcBuy) return emcCovered(node);
         if (node.isBlockedByStation()) return false;
         return nodeHave(node) >= node.requiredCount;
     }
@@ -1787,7 +1812,7 @@ public class QuickCraftScreen extends GuiScreen {
         if (node == root) return COLOR_ROOT;
         if (!node.craftReachable) return COLOR_DISABLED;
         if (node.owned) return COLOR_HAVE;
-        if (node.emcBuy) return effectiveHave(ItemKey.of(node.output)) >= node.requiredCount ? COLOR_EMC : COLOR_MISSING;
+        if (node.emcBuy) return emcCovered(node) ? COLOR_EMC : COLOR_MISSING;
         int have = nodeHave(node);
         if (have >= node.requiredCount) return COLOR_HAVE;
         if (node.selected() == null || node.truncated) return COLOR_MISSING;
@@ -1817,7 +1842,7 @@ public class QuickCraftScreen extends GuiScreen {
 
     private boolean computeAchievable(CraftNode node) {
         if (node.owned) return true;
-        if (node.emcBuy) return effectiveHave(ItemKey.of(node.output)) >= node.requiredCount;
+        if (node.emcBuy) return emcCovered(node);
         if (node.reference != null) return achievable(node.reference);
         int have = nodeHave(node);
         if (have >= node.requiredCount) return true;

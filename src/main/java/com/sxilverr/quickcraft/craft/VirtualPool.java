@@ -115,7 +115,7 @@ public class VirtualPool {
 
     private static void merge(Map<ItemKey, Integer> map, ItemKey key, int amount) {
         Integer existing = map.get(key);
-        map.put(key, existing == null ? amount : existing + amount);
+        map.put(key, existing == null ? amount : (int) Math.min(Integer.MAX_VALUE, (long) existing + amount));
     }
 
     public Map<ItemKey, Integer> counts() {

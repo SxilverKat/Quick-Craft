@@ -15,7 +15,7 @@ public final class CraftExecutor {
 
     public static void simulate(CraftNode root, VirtualPool pool) {
         ItemKey rootKey = ItemKey.of(root.output);
-        int goal = pool.count(rootKey) + root.requiredCount;
+        int goal = clamp((long) pool.count(rootKey) + root.requiredCount);
         for (int pass = 0; pass < MAX_PASSES && pool.count(rootKey) < goal; pass++) {
             if (ensure(root, goal, pool) == 0) break;
         }
@@ -27,15 +27,18 @@ public final class CraftExecutor {
 
         ItemKey outputKey = ItemKey.of(node.output);
         int crafts = Math.max(1, node.craftsNeeded);
+        int resultPer = Math.max(1, node.resultPerCraft);
         int done = 0;
         while (pool.count(outputKey) < need) {
             int before = pool.count(outputKey);
+            int wanted = ceilDiv(need - before, resultPer);
             for (CraftNode child : node.children) {
-                done += ensure(child, perCraft(child, crafts), pool);
+                done += ensure(child, demand(child, crafts, wanted), pool);
             }
-            if (!canCraftOnce(node, pool, crafts)) break;
-            doCraftOnce(node, pool, crafts, outputKey);
-            done++;
+            int batch = craftable(node, pool, crafts, wanted);
+            if (batch <= 0) break;
+            doCraft(node, pool, crafts, resultPer, outputKey, batch);
+            done += batch;
             if (pool.count(outputKey) <= before) break;
         }
         return done;
@@ -45,40 +48,72 @@ public final class CraftExecutor {
         return child.catalyst ? child.requiredCount : child.requiredCount / crafts;
     }
 
-    private static boolean canCraftOnce(CraftNode node, VirtualPool pool, int crafts) {
-        if (!pool.hasEmc()) {
-            for (CraftNode child : node.children) {
-                if (pool.count(ItemKey.of(child.output)) < perCraft(child, crafts)) return false;
-            }
-            return true;
-        }
-        BigInteger need = BigInteger.ZERO;
-        for (CraftNode child : node.children) {
-            ItemKey key = ItemKey.of(child.output);
-            int required = perCraft(child, crafts);
-            int have = pool.count(key);
-            if (have >= required) continue;
-            long value = pool.emcValue(key);
-            if (value <= 0L) return false;
-            need = need.add(BigInteger.valueOf(value).multiply(BigInteger.valueOf(required - have)));
-        }
-        return pool.emcAfford(need);
+    private static int demand(CraftNode child, int crafts, int wanted) {
+        if (child.catalyst) return child.requiredCount;
+        return clamp((long) perCraft(child, crafts) * wanted);
     }
 
-    private static void doCraftOnce(CraftNode node, VirtualPool pool, int crafts, ItemKey outputKey) {
+    private static int craftable(CraftNode node, VirtualPool pool, int crafts, int wanted) {
+        int max = wanted;
+        for (CraftNode child : node.children) {
+            ItemKey key = ItemKey.of(child.output);
+            int per = perCraft(child, crafts);
+            if (per <= 0) continue;
+            if (pool.hasEmc() && pool.emcValue(key) > 0L) continue;
+            int have = pool.count(key);
+            int limit = child.catalyst ? (have >= per ? wanted : 0) : have / per;
+            max = Math.min(max, limit);
+            if (max <= 0) return 0;
+        }
+        if (!pool.hasEmc()) return max;
+        int lo = 0;
+        int hi = max;
+        while (lo < hi) {
+            int mid = lo + (hi - lo + 1) / 2;
+            if (pool.emcAfford(cost(node, pool, crafts, mid))) lo = mid;
+            else hi = mid - 1;
+        }
+        return lo;
+    }
+
+    private static BigInteger cost(CraftNode node, VirtualPool pool, int crafts, int batch) {
+        BigInteger total = BigInteger.ZERO;
+        for (CraftNode child : node.children) {
+            ItemKey key = ItemKey.of(child.output);
+            int per = perCraft(child, crafts);
+            if (per <= 0) continue;
+            long value = pool.emcValue(key);
+            if (value <= 0L) continue;
+            long required = child.catalyst ? per : (long) per * batch;
+            long have = pool.count(key);
+            if (have >= required) continue;
+            total = total.add(BigInteger.valueOf(value).multiply(BigInteger.valueOf(required - have)));
+        }
+        return total;
+    }
+
+    private static void doCraft(CraftNode node, VirtualPool pool, int crafts, int resultPer, ItemKey outputKey, int batch) {
         for (CraftNode child : node.children) {
             ItemKey key = ItemKey.of(child.output);
             if (child.catalyst) {
                 if (pool.count(key) <= 0 && pool.take(key, child.requiredCount)) pool.add(key, child.requiredCount);
                 continue;
             }
-            int occ = child.requiredCount / crafts;
+            int occ = clamp((long) perCraft(child, crafts) * batch);
             pool.take(key, occ);
             ItemStack remainder = ForgeHooks.getContainerItem(child.output);
             if (remainder != null && !remainder.isEmpty()) {
-                pool.add(ItemKey.of(remainder), occ * remainder.getCount());
+                pool.add(ItemKey.of(remainder), clamp((long) occ * remainder.getCount()));
             }
         }
-        pool.produce(outputKey, node.resultPerCraft);
+        pool.produce(outputKey, clamp((long) resultPer * batch));
+    }
+
+    private static int ceilDiv(int a, int b) {
+        return clamp(((long) a + b - 1) / b);
+    }
+
+    private static int clamp(long value) {
+        return (int) Math.min(Integer.MAX_VALUE, Math.max(0L, value));
     }
 }

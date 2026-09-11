@@ -47,7 +47,7 @@ public final class EmcBank {
         if (cost.compareTo(budget) > 0) return false;
         budget = budget.subtract(cost);
         Integer existing = purchased.get(key);
-        purchased.put(key, existing == null ? amount : existing + amount);
+        purchased.put(key, existing == null ? amount : (int) Math.min(Integer.MAX_VALUE, (long) existing + amount));
         return true;
     }
 

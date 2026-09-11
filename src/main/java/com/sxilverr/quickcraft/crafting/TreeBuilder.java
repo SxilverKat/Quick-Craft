@@ -30,7 +30,7 @@ public class TreeBuilder {
     private Availability availability = Availability.NONE;
     private Stations stations = new Stations(3, false, null, null);
     private boolean collapseOwned = true;
-    private boolean hideLooping = true;
+    private boolean hideLooping = false;
     private final Map<ItemKey, Integer> claimedStock = new HashMap<ItemKey, Integer>();
     private final Set<ItemKey> loopIngredients = new HashSet<ItemKey>();
     private final Map<ItemKey, CraftNode> expanded = new HashMap<ItemKey, CraftNode>();
@@ -81,14 +81,15 @@ public class TreeBuilder {
         int freeStock = availability.available(outputKey) - claimed;
         node.freeStock = Math.max(0, freeStock);
 
+        boolean root = depth == 0;
         node.autoRecipe = alternatives.isEmpty() ? -1 : autoBestIndex(output, alternatives, requiredCount);
         node.selectedRecipe = resolveSelection(output, alternatives, node.autoRecipe);
         if (node.selectedRecipe < 0) {
             if (!catalyst) claimedStock.put(outputKey, claimed + Math.min(node.freeStock, requiredCount));
+            if (!root && freeStock < requiredCount && emcLookup.obtainable(outputKey)) node.emcBuy = true;
             return node;
         }
 
-        boolean root = depth == 0;
         RecipeOption option = node.selected();
         if (!root && collapseOwned && freeStock >= requiredCount) {
             node.owned = true;
@@ -141,7 +142,7 @@ public class TreeBuilder {
                 catalysts.add(key);
             } else {
                 Integer existing = needs.get(key);
-                needs.put(key, existing == null ? crafts : existing + crafts);
+                needs.put(key, existing == null ? crafts : clamp((long) existing + crafts));
             }
         }
         Set<ItemKey> kept = new HashSet<ItemKey>();
@@ -175,7 +176,7 @@ public class TreeBuilder {
                 if (!needs.containsKey(key)) needs.put(key, 1);
             } else {
                 Integer existing = needs.get(key);
-                needs.put(key, existing == null ? crafts : existing + crafts);
+                needs.put(key, existing == null ? crafts : clamp((long) existing + crafts));
             }
         }
         if (needs.isEmpty()) return false;
@@ -257,7 +258,7 @@ public class TreeBuilder {
                 if (!needs.containsKey(choiceKey)) needs.put(choiceKey, 1);
             } else {
                 Integer existing = needs.get(choiceKey);
-                needs.put(choiceKey, existing == null ? crafts : existing + crafts);
+                needs.put(choiceKey, existing == null ? crafts : clamp((long) existing + crafts));
             }
         }
 
@@ -348,7 +349,7 @@ public class TreeBuilder {
             boolean loops = loopsThrough(choice, outputKey);
             if (!loops) continue;
             loopIngredients.add(choiceKey);
-            if (availability.available(choiceKey) <= 0) hidden = true;
+            if (availability.available(choiceKey) <= 0 && !emcLookup.obtainable(choiceKey)) hidden = true;
         }
         return hidden;
     }
@@ -386,7 +387,10 @@ public class TreeBuilder {
 
     private Reach reach(ItemKey item, ItemKey output, Set<ItemKey> visited, int depth, boolean checkStock) {
         if (item.equals(output)) return Reach.DEAD;
-        if (checkStock && availability.available(item) > 0) return Reach.OK;
+        if (checkStock) {
+            loopIngredients.add(item);
+            if (availability.available(item) > 0) return Reach.OK;
+        }
         if (depth >= REACH_DEPTH) return Reach.OK;
         if (visited.contains(item)) return new Reach(false, Collections.singleton(item));
         Map<ItemKey, Reach> memo = reachMemo.get(output);
@@ -401,15 +405,17 @@ public class TreeBuilder {
         visited.add(item);
         boolean anyDead = false;
         Set<ItemKey> cycles = new HashSet<ItemKey>();
-        Reach result = null;
-        for (RecipeOption recipe : recipes) {
-            Reach r = reachRecipe(recipe, output, visited, depth + 1);
-            if (r.ok()) {
-                result = Reach.OK;
-                break;
+        Reach result = cookedFromRaw(item, output, visited, depth) ? Reach.OK : null;
+        if (result == null) {
+            for (RecipeOption recipe : recipes) {
+                Reach r = reachRecipe(recipe, output, visited, depth + 1);
+                if (r.ok()) {
+                    result = Reach.OK;
+                    break;
+                }
+                if (r.dead) anyDead = true;
+                cycles.addAll(r.cycles);
             }
-            if (r.dead) anyDead = true;
-            cycles.addAll(r.cycles);
         }
         visited.remove(item);
         if (result == null) {
@@ -419,6 +425,14 @@ public class TreeBuilder {
         }
         if (checkStock && result.cycles.isEmpty()) memo.put(item, result);
         return result;
+    }
+
+    private boolean cookedFromRaw(ItemKey item, ItemKey output, Set<ItemKey> visited, int depth) {
+        for (ItemStack input : resolver.cookingInputs(item.toStack(1))) {
+            if (input.isEmpty()) continue;
+            if (reach(ItemKey.of(input), output, visited, depth + 1, true).ok()) return true;
+        }
+        return false;
     }
 
     private Reach reachRecipe(RecipeOption recipe, ItemKey output, Set<ItemKey> visited, int depth) {
@@ -490,6 +504,10 @@ public class TreeBuilder {
     }
 
     private static int ceilDiv(int a, int b) {
-        return (a + b - 1) / b;
+        return clamp(((long) a + b - 1) / b);
+    }
+
+    private static int clamp(long value) {
+        return (int) Math.min(Integer.MAX_VALUE, Math.max(0L, value));
     }
 }

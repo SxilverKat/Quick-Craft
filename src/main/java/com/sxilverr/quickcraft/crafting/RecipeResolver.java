@@ -4,6 +4,7 @@ import com.sxilverr.quickcraft.QuickCraft;
 import com.sxilverr.quickcraft.integration.avaritia.AvaritiaSupport;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.crafting.FurnaceRecipes;
 import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
@@ -22,10 +23,56 @@ import java.util.Set;
 public class RecipeResolver {
     private final Map<Item, List<RecipeOption>> byResult = new HashMap<Item, List<RecipeOption>>();
     private final Set<ResourceLocation> forgeRegistryRecipeIds = new HashSet<ResourceLocation>();
+    private final Map<Item, List<Cooked>> cookedFrom = new HashMap<Item, List<Cooked>>();
+
+    private static final class Cooked {
+        final ItemStack output;
+        final ItemStack input;
+
+        Cooked(ItemStack output, ItemStack input) {
+            this.output = output;
+            this.input = input;
+        }
+    }
 
     public RecipeResolver() {
         indexCrafting();
         indexAvaritia();
+        indexCooking();
+    }
+
+    private void indexCooking() {
+        for (Map.Entry<ItemStack, ItemStack> entry : FurnaceRecipes.instance().getSmeltingList().entrySet()) {
+            ItemStack input = entry.getKey();
+            ItemStack output = entry.getValue();
+            if (input == null || input.isEmpty() || output == null || output.isEmpty()) continue;
+            List<Cooked> list = cookedFrom.get(output.getItem());
+            if (list == null) {
+                list = new ArrayList<Cooked>();
+                cookedFrom.put(output.getItem(), list);
+            }
+            list.add(new Cooked(output, input));
+        }
+    }
+
+    public List<ItemStack> cookingInputs(ItemStack output) {
+        if (output == null || output.isEmpty()) return Collections.emptyList();
+        List<Cooked> all = cookedFrom.get(output.getItem());
+        if (all == null || all.isEmpty()) return Collections.emptyList();
+        List<ItemStack> inputs = new ArrayList<ItemStack>();
+        for (Cooked cooked : all) {
+            if (!metaMatches(cooked.output, output)) continue;
+            ItemStack input = cooked.input.copy();
+            if (input.getMetadata() == OreDictionary.WILDCARD_VALUE) input = new ItemStack(input.getItem(), 1, 0);
+            inputs.add(input);
+        }
+        return inputs;
+    }
+
+    private static boolean metaMatches(ItemStack a, ItemStack b) {
+        int metaA = a.getMetadata();
+        int metaB = b.getMetadata();
+        return metaA == OreDictionary.WILDCARD_VALUE || metaB == OreDictionary.WILDCARD_VALUE || metaA == metaB;
     }
 
     private void indexCrafting() {

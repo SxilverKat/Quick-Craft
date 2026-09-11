@@ -44,7 +44,7 @@ public final class QuickCraftConfig {
     private static boolean animationsEnabled = true;
     private static boolean creativeBypass = false;
     private static boolean pinnedListAnimation = true;
-    private static boolean hideLoopingRecipes = true;
+    private static boolean hideLoopingRecipes = false;
     private static boolean openOnlyWithRecipe = true;
     private static boolean hoverBulge = true;
     private static boolean sizeTabToFit = true;
@@ -122,8 +122,8 @@ public final class QuickCraftConfig {
         pinnedListAnimation = config.getBoolean("pinnedListAnimation", GENERAL, true,
                 "The pinned (bookmarked) ingredients list eases its rows in when it appears.");
 
-        hideLoopingRecipes = config.getBoolean("hideLoopingRecipes", GENERAL, true,
-                "Recipes that loop back on themselves are hidden as options unless you already have the looping item on hand.");
+        hideLoopingRecipes = config.getBoolean("hideLoopingRecipes", GENERAL, false,
+                "Hide recipes that loop back on themselves as options unless you already have the looping item on hand.");
 
         openOnlyWithRecipe = config.getBoolean("openOnlyWithRecipe", GENERAL, true,
                 "Pressing the Quick Craft key on an item that has no supported recipe does nothing instead of opening an empty menu.");
