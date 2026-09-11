@@ -671,9 +671,11 @@ public class QuickCraftScreen extends GuiScreen {
         String gap = (!totalPart.isEmpty() && !costPart.isEmpty()) ? "   " : "";
 
         int w = this.fontRenderer.getStringWidth(totalPart + gap + costPart);
-        int x = this.width - 8 - w;
+        int right = this.width - 8;
+        if (summaryVisible()) right = Math.min(right, summaryPanelX() - 4);
+        int x = Math.max(8, right - w);
         boolean stationBar = (stationProblem && missingStation != null) || treeLimited;
-        if (!stationBar) Draw.fill(x - 6, 24, this.width, 38, COLOR_BAR);
+        if (!stationBar) Draw.fill(x - 6, 24, right + 8, 38, COLOR_BAR);
 
         if (!totalPart.isEmpty()) Draw.string(this.fontRenderer, totalPart, x, 27, COLOR_EMC, false);
         if (!costPart.isEmpty()) {
@@ -1216,18 +1218,8 @@ public class QuickCraftScreen extends GuiScreen {
         long time = now();
         boolean swapping = animate && showSummary && (time - summarySwapStart) < 2 * SUMMARY_SWAP;
         long elapsed = animate ? time - summaryAnimStart : 0;
-        long rowsSpan = (long) Math.max(0, summaryRowCount - 1) * ROW_STAGGER + ROW_SLIDE;
 
-        double containerFrac;
-        if (!animate || swapping) {
-            containerFrac = 1.0;
-        } else if (opening) {
-            containerFrac = easeOut(clamp(elapsed / (double) SUMMARY_SLIDE));
-        } else {
-            containerFrac = 1 - easeOut(clamp((elapsed - rowsSpan) / (double) SUMMARY_SLIDE));
-        }
-
-        int px = this.width - PANEL_W - 6 + (int) ((1 - containerFrac) * (PANEL_W + 12));
+        int px = summaryPanelX();
         int top = 26;
         int bottom = this.height - 58;
         Draw.fill(px, top, px + PANEL_W, bottom, 0xF0080808);
@@ -1294,6 +1286,22 @@ public class QuickCraftScreen extends GuiScreen {
 
     private int summaryPx() {
         return this.width - PANEL_W - 6;
+    }
+
+    private int summaryPanelX() {
+        long time = now();
+        boolean swapping = animate && showSummary && (time - summarySwapStart) < 2 * SUMMARY_SWAP;
+        long elapsed = animate ? time - summaryAnimStart : 0;
+        long rowsSpan = (long) Math.max(0, summaryRowCount - 1) * ROW_STAGGER + ROW_SLIDE;
+        double containerFrac;
+        if (!animate || swapping) {
+            containerFrac = 1.0;
+        } else if (showSummary) {
+            containerFrac = easeOut(clamp(elapsed / (double) SUMMARY_SLIDE));
+        } else {
+            containerFrac = 1 - easeOut(clamp((elapsed - rowsSpan) / (double) SUMMARY_SLIDE));
+        }
+        return summaryPx() + (int) ((1 - containerFrac) * (PANEL_W + 12));
     }
 
     private boolean overCopyButton(double mx, double my) {
