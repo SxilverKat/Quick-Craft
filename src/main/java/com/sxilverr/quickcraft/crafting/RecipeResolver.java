@@ -2,6 +2,8 @@ package com.sxilverr.quickcraft.crafting;
 
 import com.sxilverr.quickcraft.QuickCraft;
 import com.sxilverr.quickcraft.integration.avaritia.AvaritiaSupport;
+import com.sxilverr.quickcraft.integration.futuremc.FutureMcSupport;
+import com.sxilverr.quickcraft.integration.ubm.UbmSupport;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.crafting.FurnaceRecipes;
@@ -38,6 +40,7 @@ public class RecipeResolver {
     public RecipeResolver() {
         indexCrafting();
         indexAvaritia();
+        indexBackports();
         indexCooking();
     }
 
@@ -118,6 +121,29 @@ public class RecipeResolver {
         }
         if (count > 0) {
             QuickCraft.LOGGER.info("Quick Craft indexed {} Avaritia extreme recipe(s)", count);
+        }
+    }
+
+    private void indexBackports() {
+        int count = 0;
+        if (FutureMcSupport.available()) {
+            for (ModdedRecipeOption option : FutureMcSupport.stonecutterRecipes()) {
+                add(option.result().getItem(), option);
+                count++;
+            }
+            for (ModdedRecipeOption option : FutureMcSupport.smithingRecipes()) {
+                add(option.result().getItem(), option);
+                count++;
+            }
+        }
+        if (UbmSupport.available()) {
+            for (ModdedRecipeOption option : UbmSupport.smithingRecipes()) {
+                add(option.result().getItem(), option);
+                count++;
+            }
+        }
+        if (count > 0) {
+            QuickCraft.LOGGER.info("Quick Craft indexed {} stonecutter/smithing recipe(s) from backport mods", count);
         }
     }
 

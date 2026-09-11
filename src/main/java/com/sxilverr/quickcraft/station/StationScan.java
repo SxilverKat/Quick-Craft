@@ -3,6 +3,8 @@ package com.sxilverr.quickcraft.station;
 import com.sxilverr.quickcraft.crafting.Stations;
 import com.sxilverr.quickcraft.integration.ae2.Ae2Support;
 import com.sxilverr.quickcraft.integration.avaritia.AvaritiaSupport;
+import com.sxilverr.quickcraft.integration.futuremc.FutureMcSupport;
+import com.sxilverr.quickcraft.integration.ubm.UbmSupport;
 import com.sxilverr.quickcraft.integration.rs.RsSupport;
 import com.sxilverr.quickcraft.util.Reg;
 import net.minecraft.block.Block;
@@ -23,6 +25,8 @@ import java.util.Map;
 
 public final class StationScan {
     private static final String RS_GRID = "refinedstorage:grid";
+    private static final String TINKERS_TABLES = "tconstruct:tooltables";
+    private static final int TINKERS_CRAFTING_STATION_META = 0;
 
     private StationScan() {
     }
@@ -32,10 +36,17 @@ public final class StationScan {
 
         BlockPos center = player.getPosition();
         boolean vanillaTable = false;
+        boolean tinkersStation = false;
         boolean extreme = false;
         Item rsGrid = null;
         Item extremeSource = null;
+        Item stonecutterSource = null;
+        Item smithingSource = null;
         boolean avaritia = AvaritiaSupport.available();
+        Block tinkersTables = Reg.block(TINKERS_TABLES);
+        Block futureStonecutter = FutureMcSupport.available() ? Reg.block(FutureMcSupport.STONECUTTER_BLOCK) : null;
+        Block futureSmithing = FutureMcSupport.available() ? Reg.block(FutureMcSupport.SMITHING_TABLE_BLOCK) : null;
+        Block ubmSmithing = UbmSupport.available() ? Reg.block(UbmSupport.SMITHING_TABLE_BLOCK) : null;
 
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int x = -Stations.RANGE; x <= Stations.RANGE; x++) {
@@ -47,6 +58,14 @@ public final class StationScan {
                     Block block = state.getBlock();
                     if (block == Blocks.CRAFTING_TABLE) {
                         vanillaTable = true;
+                    } else if (tinkersTables != null && block == tinkersTables
+                            && block.getMetaFromState(state) == TINKERS_CRAFTING_STATION_META) {
+                        tinkersStation = true;
+                    } else if (futureStonecutter != null && block == futureStonecutter) {
+                        stonecutterSource = Item.getItemFromBlock(block);
+                    } else if ((futureSmithing != null && block == futureSmithing)
+                            || (ubmSmithing != null && block == ubmSmithing)) {
+                        if (smithingSource == null) smithingSource = Item.getItemFromBlock(block);
                     } else if (avaritia && !extreme && AvaritiaSupport.isExtremeCraftingBlock(state)) {
                         extreme = true;
                         extremeSource = Item.getItemFromBlock(block);
@@ -65,6 +84,7 @@ public final class StationScan {
 
         Item craftingSource = null;
         if (vanillaTable) craftingSource = Item.getItemFromBlock(Blocks.CRAFTING_TABLE);
+        else if (tinkersStation) craftingSource = Item.getItemFromBlock(tinkersTables);
         else if (rsGrid != null && rsGrid != Items.AIR) craftingSource = rsGrid;
         else if (ae2Terminal) craftingSource = Reg.item("appliedenergistics2:part");
         else if (ae2Wireless != null) craftingSource = ae2Wireless;
@@ -73,7 +93,8 @@ public final class StationScan {
 
         if (extreme && extremeSource == null) extremeSource = Reg.item("avaritia:extreme_crafting_table");
 
-        return new Stations(craftingSource != null ? 3 : 2, extreme, craftingSource, extremeSource);
+        return new Stations(craftingSource != null ? 3 : 2, extreme, stonecutterSource != null, smithingSource != null,
+                craftingSource, extremeSource, stonecutterSource, smithingSource);
     }
 
     private static boolean isRefinedStorageCraftingGrid(Block block, IBlockState state) {

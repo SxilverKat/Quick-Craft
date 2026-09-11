@@ -19,10 +19,15 @@ public final class StationProviders {
                 "refinedstorage:grid@1",
                 "appliedenergistics2:part@340",
                 "appliedenergistics2:wireless_crafting_terminal",
-                "refinedstorageaddons:wireless_crafting_grid"));
+                "refinedstorageaddons:wireless_crafting_grid",
+                "tconstruct:tooltables@0"));
         IDS.put(Station.EXTREME_CRAFTING, Arrays.asList(
                 "avaritia:extreme_crafting_table",
                 "avaritia:extreme_crafting"));
+        IDS.put(Station.STONECUTTER, Collections.singletonList("futuremc:stonecutter"));
+        IDS.put(Station.SMITHING, Arrays.asList(
+                "futuremc:smithing_table",
+                "ubm:smithing_table"));
     }
 
     private StationProviders() {

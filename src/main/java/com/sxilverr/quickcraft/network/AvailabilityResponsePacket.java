@@ -45,8 +45,12 @@ public class AvailabilityResponsePacket implements IMessage {
         }
         buf.writeInt(stations.gridSize());
         buf.writeBoolean(stations.extremeCrafting());
+        buf.writeBoolean(stations.stonecutter());
+        buf.writeBoolean(stations.smithing());
         Buf.writeItem(buf, stations.craftingSource());
         Buf.writeItem(buf, stations.extremeSource());
+        Buf.writeItem(buf, stations.stonecutterSource());
+        Buf.writeItem(buf, stations.smithingSource());
     }
 
     @Override
@@ -67,9 +71,14 @@ public class AvailabilityResponsePacket implements IMessage {
         }
         int gridSize = buf.readInt();
         boolean extremeCrafting = buf.readBoolean();
+        boolean stonecutter = buf.readBoolean();
+        boolean smithing = buf.readBoolean();
         Item craftingSource = Buf.readItem(buf);
         Item extremeSource = Buf.readItem(buf);
-        stations = new Stations(gridSize, extremeCrafting, craftingSource, extremeSource);
+        Item stonecutterSource = Buf.readItem(buf);
+        Item smithingSource = Buf.readItem(buf);
+        stations = new Stations(gridSize, extremeCrafting, stonecutter, smithing, craftingSource, extremeSource,
+                stonecutterSource, smithingSource);
     }
 
     public static class Handler implements IMessageHandler<AvailabilityResponsePacket, IMessage> {

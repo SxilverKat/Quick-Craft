@@ -2,7 +2,9 @@ package com.sxilverr.quickcraft.crafting;
 
 public enum Station {
     CRAFTING("Crafting Table", "minecraft:crafting_table"),
-    EXTREME_CRAFTING("Extreme Crafting Table", "avaritia:extreme_crafting_table");
+    EXTREME_CRAFTING("Extreme Crafting Table", "avaritia:extreme_crafting_table"),
+    STONECUTTER("Stonecutter", "futuremc:stonecutter"),
+    SMITHING("Smithing Table", "futuremc:smithing_table");
 
     private final String displayName;
     private final String iconId;

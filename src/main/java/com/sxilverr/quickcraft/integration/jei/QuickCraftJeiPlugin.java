@@ -6,6 +6,7 @@ import com.sxilverr.quickcraft.integration.OriginProvider;
 import com.sxilverr.quickcraft.integration.QuickCraftIntegrations;
 import com.sxilverr.quickcraft.integration.RecipeViewer;
 import com.sxilverr.quickcraft.integration.TextInputFocus;
+import com.sxilverr.quickcraft.util.Reflect;
 import mezz.jei.api.IJeiRuntime;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.IRecipeRegistry;
@@ -14,6 +15,8 @@ import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.IRecipeCategory;
 import mezz.jei.api.recipe.VanillaRecipeCategoryUid;
 import net.minecraft.item.ItemStack;
+
+import java.lang.reflect.Method;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -107,22 +110,36 @@ public class QuickCraftJeiPlugin implements IModPlugin {
         if (runtime == null) return ItemStack.EMPTY;
         try {
             if (runtime.getIngredientListOverlay().hasKeyboardFocus()) return ItemStack.EMPTY;
-
-            ItemStack fromList = asStack(runtime.getIngredientListOverlay().getIngredientUnderMouse());
-            if (!fromList.isEmpty()) return fromList;
-
-            ItemStack fromBookmark = asStack(runtime.getBookmarkOverlay().getIngredientUnderMouse());
-            if (!fromBookmark.isEmpty()) return fromBookmark;
-
-            ItemStack fromRecipes = asStack(runtime.getRecipesGui().getIngredientUnderMouse());
-            if (!fromRecipes.isEmpty()) return fromRecipes;
         } catch (Throwable t) {
             return ItemStack.EMPTY;
         }
-        return ItemStack.EMPTY;
+        ItemStack fromList = ItemStack.EMPTY;
+        try {
+            fromList = asStack(runtime.getIngredientListOverlay().getIngredientUnderMouse());
+        } catch (Throwable ignored) {
+        }
+        if (!fromList.isEmpty()) return fromList;
+        ItemStack fromBookmark = ItemStack.EMPTY;
+        try {
+            fromBookmark = asStack(runtime.getBookmarkOverlay().getIngredientUnderMouse());
+        } catch (Throwable ignored) {
+        }
+        if (!fromBookmark.isEmpty()) return fromBookmark;
+        ItemStack fromRecipes = ItemStack.EMPTY;
+        try {
+            fromRecipes = asStack(runtime.getRecipesGui().getIngredientUnderMouse());
+        } catch (Throwable ignored) {
+        }
+        return fromRecipes;
     }
 
     private static ItemStack asStack(Object ingredient) {
-        return ingredient instanceof ItemStack ? (ItemStack) ingredient : ItemStack.EMPTY;
+        Object value = ingredient;
+        for (int depth = 0; depth < 2 && value != null && !(value instanceof ItemStack); depth++) {
+            Method getter = Reflect.methodByName(value.getClass(), "getIngredient", 0);
+            if (getter == null) break;
+            value = Reflect.invoke(getter, value);
+        }
+        return value instanceof ItemStack ? ((ItemStack) value).copy() : ItemStack.EMPTY;
     }
 }
